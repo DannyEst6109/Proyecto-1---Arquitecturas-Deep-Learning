@@ -43,6 +43,18 @@ Solo regenerar el conjunto de datos:
 python -m src.generador
 ```
 
+### Verificar que no hay fuga de información
+
+Afirmar que no hay fuga es barato; este script lo demuestra y devuelve código de
+salida 1 si falla. Recalcula las variables con un bucle ingenuo que solo puede
+mirar hacia atrás, y —la prueba decisiva— **elimina el futuro del dataset y las
+reconstruye**: si alguna variable cambiara al borrar las transacciones
+posteriores, dependería del futuro. Ninguna de las 16 cambia.
+
+```bash
+python herramientas/verificar_causalidad.py
+```
+
 ### Determinismo
 
 Todo el trabajo es reproducible con la **semilla 20853**:
