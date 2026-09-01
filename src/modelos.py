@@ -41,11 +41,14 @@ def fijar_semilla(semilla: int = 20853) -> None:
 # Lotes
 # --------------------------------------------------------------------------
 
-class Tensores:
-    """Arreglos base + matriz de indices. Las secuencias se arman por lote.
+class BaseEventos:
+    """Arreglos globales de eventos + matriz de indices de secuencia.
 
-    Guardar (N, K, F) explicitamente costaria cientos de MB; en cambio se
-    guardan los eventos una sola vez y se indexan al vuelo.
+    Guardar (N, K, F) explicitamente costaria cientos de MB; en cambio los
+    eventos se guardan UNA vez y las secuencias se arman por lote indexando.
+    Las tres particiones comparten esta misma base: una secuencia de prueba
+    puede mirar hacia atras a eventos anteriores al corte, que es exactamente
+    lo que ocurriria en produccion (ver `src/particion.py`).
     """
 
     def __init__(self, num: np.ndarray, cat: np.ndarray, idx: np.ndarray,
@@ -57,7 +60,26 @@ class Tensores:
         self.y = torch.from_numpy(np.ascontiguousarray(y)).float()
         self.pad_cat = torch.tensor([n for _, n in CATEGORICAS_EVENTO], dtype=torch.long)
 
-    def lote(self, filas: torch.Tensor, permutar_historia: bool = False,
+    def vista(self, filas: np.ndarray) -> "Tensores":
+        """Subconjunto evaluable (train, val o test) sobre la misma base."""
+        return Tensores(self, np.asarray(filas, dtype=np.int64))
+
+
+class Tensores:
+    """Vista de una particion sobre `BaseEventos`."""
+
+    def __init__(self, base: BaseEventos, filas: np.ndarray) -> None:
+        self.base = base
+        self.filas = torch.from_numpy(filas).long()
+
+    def __len__(self) -> int:
+        return len(self.filas)
+
+    @property
+    def objetivo(self) -> torch.Tensor:
+        return self.base.y[self.filas]
+
+    def lote(self, posiciones: torch.Tensor, permutar_historia: bool = False,
              generador: torch.Generator | None = None,
              recorte: int | None = None) -> dict:
         """Arma un lote de secuencias.
@@ -65,10 +87,12 @@ class Tensores:
         permutar_historia : baraja el orden de los eventos DENTRO de cada
             secuencia sin alterar los eventos ni sus valores. Es la prueba de
             permutacion controlada exigida por el enunciado.
-        recorte : conserva solo las ultimas `recorte` posiciones de la historia
+        recorte : conserva solo las ultimas `recorte` posiciones de la ventana
             (las anteriores se marcan como relleno). Prueba de historia corta.
         """
-        idx = self.idx[filas]                       # (B, K)
+        base = self.base
+        filas = self.filas[posiciones]
+        idx = base.idx[filas]                       # (B, K)
         mask = idx >= 0
 
         if recorte is not None and recorte < idx.shape[1]:
@@ -80,15 +104,15 @@ class Tensores:
             idx, mask = _permutar(idx, mask, generador)
 
         seguro = torch.where(mask, idx, torch.zeros_like(idx))
-        x_num = self.num[seguro] * mask.unsqueeze(-1)
-        x_cat = torch.where(mask.unsqueeze(-1), self.cat[seguro],
-                            self.pad_cat.expand_as(self.cat[seguro]))
+        x_num = base.num[seguro] * mask.unsqueeze(-1)
+        x_cat = torch.where(mask.unsqueeze(-1), base.cat[seguro],
+                            base.pad_cat.expand_as(base.cat[seguro]))
         return {
             "num": x_num,
             "cat": x_cat,
             "mask": mask.float(),
-            "agregadas": self.agregadas[filas],
-            "y": self.y[filas],
+            "agregadas": base.agregadas[filas],
+            "y": base.y[filas],
         }
 
 
@@ -209,10 +233,13 @@ class ModeloHibridoAtencion(nn.Module):
 
 @dataclass
 class ConfigEntrenamiento:
-    epocas: int = 18
+    epocas: int = 25
     tam_lote: int = 512
     tasa_aprendizaje: float = 2e-3
-    paciencia: int = 4
+    # El hibrido C tiene mas parametros y sobreajusta antes; se regulariza con
+    # decaimiento de pesos ademas del dropout.
+    decaimiento_pesos: float = 1e-4
+    paciencia: int = 5
     semilla: int = 20853
 
 
@@ -229,11 +256,13 @@ def entrenar(modelo: nn.Module, datos_train: Tensores, datos_val: Tensores,
 
     # El desbalance se maneja ponderando la clase positiva en la perdida, no
     # remuestreando: remuestrear romperia la estructura temporal de las series.
-    n_pos = float(datos_train.y.sum())
-    n_neg = float(len(datos_train.y) - n_pos)
+    y_train = datos_train.objetivo
+    n_pos = float(y_train.sum())
+    n_neg = float(len(y_train) - n_pos)
     pos_weight = torch.tensor(min(n_neg / max(n_pos, 1.0), 50.0))
     criterio = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizador = torch.optim.Adam(modelo.parameters(), lr=cfg.tasa_aprendizaje)
+    optimizador = torch.optim.Adam(modelo.parameters(), lr=cfg.tasa_aprendizaje,
+                                   weight_decay=cfg.decaimiento_pesos)
 
     mejor = -np.inf
     mejor_estado = None
@@ -243,19 +272,19 @@ def entrenar(modelo: nn.Module, datos_train: Tensores, datos_val: Tensores,
     for epoca in range(cfg.epocas):
         modelo.train()
         perdida_total, vistos = 0.0, 0
-        for filas in iterar_lotes(len(datos_train.y), cfg.tam_lote, True, gen):
-            lote = datos_train.lote(filas)
+        for posiciones in iterar_lotes(len(datos_train), cfg.tam_lote, True, gen):
+            lote = datos_train.lote(posiciones)
             optimizador.zero_grad()
             logits = modelo(lote)
             perdida = criterio(logits, lote["y"])
             perdida.backward()
             nn.utils.clip_grad_norm_(modelo.parameters(), 5.0)
             optimizador.step()
-            perdida_total += float(perdida) * len(filas)
-            vistos += len(filas)
+            perdida_total += perdida.detach().item() * len(posiciones)
+            vistos += len(posiciones)
 
         puntajes_val = predecir(modelo, datos_val, cfg.tam_lote)
-        valor = metrica_val(datos_val.y.numpy(), puntajes_val)
+        valor = metrica_val(datos_val.objetivo.numpy(), puntajes_val)
         historial.append({"epoca": epoca, "perdida": perdida_total / vistos,
                           "metrica_val": valor})
         if verboso:
@@ -277,6 +306,49 @@ def entrenar(modelo: nn.Module, datos_train: Tensores, datos_val: Tensores,
     return {"mejor_metrica_val": mejor, "historial": historial}
 
 
+def entrenar_linea_base(x_train, y_train, x_val, y_val, cols_categoricas,
+                        metrica, semilla: int = 20853, verboso: bool = True):
+    """A - Gradient boosting sobre agregados, con busqueda honesta.
+
+    La linea base tiene que ser COMPETITIVA: si se compara un modelo secuencial
+    ajustado contra una linea base descuidada, cualquier ventaja del orden es
+    un artefacto. Por eso se explora una rejilla pequena y se elige la mejor
+    configuracion por AUC-PR de VALIDACION, con el mismo criterio que se usa
+    para el modelo secuencial.
+    """
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
+    # El desbalance se compensa con pesos, igual que el pos_weight de B.
+    peso_pos = float((y_train == 0).sum()) / max(float((y_train == 1).sum()), 1.0)
+    pesos = np.where(y_train == 1, min(peso_pos, 50.0), 1.0)
+
+    rejilla = [
+        {"learning_rate": 0.06, "max_iter": 300, "max_leaf_nodes": 31},
+        {"learning_rate": 0.06, "max_iter": 500, "max_leaf_nodes": 63},
+        {"learning_rate": 0.12, "max_iter": 250, "max_leaf_nodes": 31},
+        {"learning_rate": 0.03, "max_iter": 600, "max_leaf_nodes": 31},
+    ]
+
+    mejor, mejor_valor, mejor_cfg = None, -np.inf, None
+    for params in rejilla:
+        modelo = HistGradientBoostingClassifier(
+            categorical_features=cols_categoricas,
+            early_stopping=False,       # la parada la decide la validacion temporal
+            random_state=semilla,
+            l2_regularization=1.0,
+            **params)
+        modelo.fit(x_train, y_train, sample_weight=pesos)
+        valor = metrica(y_val, modelo.predict_proba(x_val)[:, 1])
+        if verboso:
+            print(f"  {params}  AUC-PR val {valor:.4f}")
+        if valor > mejor_valor:
+            mejor, mejor_valor, mejor_cfg = modelo, valor, params
+
+    if verboso:
+        print(f"  elegido: {mejor_cfg}  AUC-PR val {mejor_valor:.4f}")
+    return mejor, {"mejor_metrica_val": mejor_valor, "config": mejor_cfg}
+
+
 @torch.no_grad()
 def predecir(modelo: nn.Module, datos: Tensores, tam_lote: int = 1024,
              permutar_historia: bool = False, semilla: int = 7,
@@ -284,9 +356,9 @@ def predecir(modelo: nn.Module, datos: Tensores, tam_lote: int = 1024,
     """Puntaje continuo de riesgo en [0, 1]."""
     modelo.eval()
     gen = torch.Generator().manual_seed(semilla)
-    salida = np.empty(len(datos.y), dtype=np.float64)
-    for filas in iterar_lotes(len(datos.y), tam_lote, False):
-        lote = datos.lote(filas, permutar_historia=permutar_historia,
+    salida = np.empty(len(datos), dtype=np.float64)
+    for posiciones in iterar_lotes(len(datos), tam_lote, False):
+        lote = datos.lote(posiciones, permutar_historia=permutar_historia,
                           generador=gen, recorte=recorte)
-        salida[filas.numpy()] = torch.sigmoid(modelo(lote)).numpy()
+        salida[posiciones.numpy()] = torch.sigmoid(modelo(lote)).numpy()
     return salida
