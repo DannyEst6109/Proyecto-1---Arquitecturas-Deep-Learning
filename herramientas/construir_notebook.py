@@ -891,6 +891,13 @@ print(f"\nmezcla − A = {d['diferencia']:+.4f}  "
 COMPLEMENTARIEDAD = d["ic_inf"] > 0
 print(f"\n¿Existe complementariedad demostrable? "
       f"{'SÍ — la idea era correcta, el vehículo neuronal fue el problema.' if COMPLEMENTARIEDAD else 'NO — con esta evidencia, A y B no aportan señales separables.'}")
+
+# Umbral por costo de la mezcla, ajustado en VALIDACIÓN como todos los demás.
+umbral_mezcla = ev.umbral_por_costo(y_val, mezcla.predict_proba(Z_val)[:, 1]).umbral
+r_mezcla = ev.evaluar_en_umbral(y_test, p_mezcla, umbral_mezcla)
+print(f"\numbral de la mezcla (de validación): {umbral_mezcla:.4f}")
+print(f"en prueba -> precisión {r_mezcla.precision:.3f}  "
+      f"exhaustividad {r_mezcla.exhaustividad:.3f}  ahorro Q{r_mezcla.ahorro:,.0f}")
 """)
 
 md(r"""
@@ -1117,12 +1124,11 @@ torch.save({
     "k": exp.k, "umbral": umbrales["C"], "semilla": SEMILLA,
 }, DIR_ARTEFACTOS / "modelo_C_hibrido.pt")
 
-# La mezcla: dos coeficientes sobre los logits de A y B, ajustados en validación.
-umbral_mezcla = ev.umbral_por_costo(y_val, mezcla.predict_proba(Z_val)[:, 1]).umbral
+# La mezcla: dos coeficientes sobre los logits de A y B, ajustados en validación
+# (calculados en §11.5).
 np.savez(DIR_ARTEFACTOS / "mezcla_AB.npz",
          coef=mezcla.coef_, intercepto=mezcla.intercept_,
          umbral=np.array([umbral_mezcla]))
-print(f"umbral de la mezcla (ajustado en validación): {umbral_mezcla:.4f}")
 
 # Los arreglos numéricos van a .npz; los nombres de columna a .json, para que
 # recargar no requiera `allow_pickle` (que es un riesgo innecesario).
@@ -1137,7 +1143,6 @@ with open(DIR_ARTEFACTOS / "columnas.json", "w", encoding="utf-8") as fh:
                "agregadas": exp.escalador_agregadas.columnas,
                "categoricas": exp.cols_categoricas}, fh, indent=2)
 
-r_mezcla = ev.evaluar_en_umbral(y_test, p_mezcla, umbral_mezcla)
 resultados = {
     "candidato": "mezcla_AB" if COMPLEMENTARIEDAD else "A",
     "umbral_mezcla": float(umbral_mezcla),
