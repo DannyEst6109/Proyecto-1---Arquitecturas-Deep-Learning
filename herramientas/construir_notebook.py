@@ -940,11 +940,18 @@ usa para reportar.
   Y como la sección 8 demostró que la señal de B depende mayoritariamente del
   orden, esa información aportada **es información de orden**.
 
-Esta es la cadena de evidencia que responde la pregunta:
+### Dos preguntas distintas: ¿se detecta? y ¿importa?
 
-> **(1)** el desempeño de B depende del orden de la historia *(permutación, §8)*
-> **(2)** B aporta señal que A no tiene *(esta sección)*
-> **⟹** el orden aporta información que los agregados no capturan.
+Un intervalo que no cruza cero dice que un efecto es **detectable**, no que sea
+**importante**. Con 39,000 transacciones de prueba se pueden detectar diferencias
+minúsculas, y confundir «significativo» con «relevante» es exactamente la forma
+más común de exagerar un resultado.
+
+Por eso evaluamos las dos cosas por separado, y el criterio de relevancia no lo
+inventamos aquí: es **la moneda que el propio comité fijó**. Q4,200 por fraude
+no detectado, Q180 por bloqueo indebido. Si la mejora no se traduce en dinero ni
+en menos clientes molestados, es un hallazgo de laboratorio y así hay que
+decirlo.
 
 La celda siguiente imprime las magnitudes; ninguna cifra de este cuaderno está
 escrita a mano en el texto.
@@ -984,17 +991,74 @@ print(f"\n¿Existe complementariedad demostrable? "
 # Umbral por costo de la mezcla, ajustado en VALIDACIÓN como todos los demás.
 umbral_mezcla = ev.umbral_por_costo(y_val, mezcla.predict_proba(Z_val)[:, 1]).umbral
 r_mezcla = ev.evaluar_en_umbral(y_test, p_mezcla, umbral_mezcla)
+r_A_solo = ev.evaluar_en_umbral(y_test, p_test["A"], umbrales["A"])
 print(f"\numbral de la mezcla (de validación): {umbral_mezcla:.4f}")
-print(f"en prueba -> precisión {r_mezcla.precision:.3f}  "
-      f"exhaustividad {r_mezcla.exhaustividad:.3f}  ahorro Q{r_mezcla.ahorro:,.0f}")
 """)
+
+md("### ¿Y cuánto vale, en la moneda del comité?")
+
+code(r'''
+delta_ahorro = r_mezcla.ahorro - r_A_solo.ahorro
+delta_fp = r_mezcla.fp - r_A_solo.fp
+delta_fn = r_mezcla.fn - r_A_solo.fn
+
+comparacion_operativa = pd.DataFrame([
+    {"escenario": "Solo motor actual (A)", "precisión": r_A_solo.precision,
+     "exhaustividad": r_A_solo.exhaustividad, "fraudes que pasan": r_A_solo.fn,
+     "bloqueos indebidos": r_A_solo.fp, "ahorro_Q": r_A_solo.ahorro},
+    {"escenario": "Motor + señal de orden", "precisión": r_mezcla.precision,
+     "exhaustividad": r_mezcla.exhaustividad, "fraudes que pasan": r_mezcla.fn,
+     "bloqueos indebidos": r_mezcla.fp, "ahorro_Q": r_mezcla.ahorro},
+]).set_index("escenario")
+display(comparacion_operativa.round(4))
+
+# El criterio de relevancia: ¿la mejora estadística se traduce en algo?
+MATERIAL_EN_DINERO = delta_ahorro / r_A_solo.ahorro >= 0.02   # 2 % del ahorro
+MATERIAL_EN_MOLESTIA = delta_fp / r_A_solo.fp <= -0.15        # 15 % menos bloqueos
+
+print(f"""
+Diferencia de AUC-PR       : {d['diferencia']:+.4f}  IC 95 % [{d['ic_inf']:+.4f}, {d['ic_sup']:+.4f}]
+  -> detectable            : {'SÍ' if COMPLEMENTARIEDAD else 'NO'}
+
+Traducido a operación, sobre {exp.dias_prueba:.0f} días de prueba:
+  fraudes que pasan        : {r_A_solo.fn} -> {r_mezcla.fn}   ({delta_fn:+d})
+  bloqueos indebidos       : {r_A_solo.fp} -> {r_mezcla.fp}   ({delta_fp:+d}, {100*delta_fp/r_A_solo.fp:+.0f} %)
+  ahorro                   : Q{r_A_solo.ahorro:,.0f} -> Q{r_mezcla.ahorro:,.0f}   ({delta_ahorro:+,.0f}, {100*delta_ahorro/r_A_solo.ahorro:+.2f} %)
+
+  -> material en dinero    : {'SÍ' if MATERIAL_EN_DINERO else 'NO'}  (criterio: >= +2 % del ahorro)
+  -> material en molestia  : {'SÍ' if MATERIAL_EN_MOLESTIA else 'NO'}  (criterio: <= -15 % de bloqueos indebidos)
+""")
+
+# La recomendación se DERIVA de estos dos criterios, no se decide de antemano.
+if MATERIAL_EN_DINERO:
+    decision = "INCORPORAR el modelo secuencial junto al motor actual"
+    justificacion = "la mejora se traduce en un ahorro apreciable"
+elif MATERIAL_EN_MOLESTIA:
+    decision = "PILOTO ACOTADO. Conservar el motor actual como decisión principal"
+    justificacion = ("el dinero apenas se mueve, pero los bloqueos indebidos bajan "
+                     "de forma sustancial a igual exhaustividad")
+else:
+    decision = "CONSERVAR el motor actual sin cambios"
+    justificacion = ("la mejora es detectable pero no se traduce ni en dinero ni "
+                     "en menos clientes molestados")
+print("RECOMENDACIÓN DERIVADA:", decision)
+''')
 
 md(r"""
 Que el peso de B en la mezcla sea distinto de cero significa que el puntaje
 secuencial **añade información que el puntaje de A no contiene**, aun cuando B
 por sí solo sea peor que A. Es la diferencia entre «B es peor» y «B es
-redundante»: son afirmaciones distintas y solo la segunda justificaría
-descartar la línea secuencial.
+redundante»: son afirmaciones distintas y solo la segunda justificaría descartar
+la línea secuencial.
+
+Pero la magnitud manda. Si la ganancia de AUC-PR es de milésimas, **la
+conclusión correcta no es «el orden vale la pena» sino «el orden es real y
+apenas se nota»**, y así hay que decírselo al comité. Lo interesante es que las
+dos dimensiones de la tabla anterior pueden no ir juntas: es posible que el
+dinero casi no se mueva y que en cambio bajen mucho los bloqueos indebidos,
+porque un falso positivo cuesta 23 veces menos que un fraude no detectado. Un
+beneficio de experiencia del cliente puede ser real aunque el AUC-PR y la cuenta
+en quetzales apenas lo registren.
 """)
 
 # ==========================================================================
@@ -1078,6 +1142,7 @@ if len(posiciones):
     print(f"\nCriterio declarado (>= 60 % sobre la medida útil):",
           "SE CUMPLE" if en_historia.mean() >= 0.60 else "NO se cumple")
     acierta = en_historia
+    R_ATENCION = float(en_historia.mean())
 
     fig, ax = plt.subplots(1, 2, figsize=(12, 3.4))
     ax[0].bar(np.arange(exp.k), pesos.mean(axis=0), color="tab:red", alpha=.8)
@@ -1093,6 +1158,7 @@ if len(posiciones):
     plt.tight_layout(); plt.savefig(DIR_FIGURAS / "fig7_atencion.png", bbox_inches="tight")
     plt.show()
 else:
+    R_ATENCION = float("nan")
     print("No hubo verdaderos positivos de sondeo con este umbral.")
 """)
 
@@ -1189,14 +1255,16 @@ matriz = pd.DataFrame([
                    f"la apuesta {'se cumple' if APUESTA_EXITOSA else 'NO se cumple'}.",
      "limitación": "Una sola semilla por variante; no se midió variabilidad entre semillas."},
     {"evidencia": "5 · Decisión económica",
-     "figura o tabla": "§11 fig6_costo.png, tabla de economía",
-     "conclusión": f"Umbral por costo (23:1) sobre A+B = {umbral_mezcla:.3f}; ahorro de "
-                   f"Q{r_mezcla.ahorro:,.0f} en {exp.dias_prueba:.0f} días de prueba.",
+     "figura o tabla": "§11 fig6_costo.png; §11.5 tabla operativa",
+     "conclusión": f"Umbral por costo (23:1) = {umbral_mezcla:.3f}; ahorro Q{r_mezcla.ahorro:,.0f} en "
+                   f"{exp.dias_prueba:.0f} días. Frente a solo A: {r_mezcla.ahorro - r_A_solo.ahorro:+,.0f} "
+                   f"({100*(r_mezcla.ahorro-r_A_solo.ahorro)/r_A_solo.ahorro:+.2f} %) pero "
+                   f"{100*(r_mezcla.fp-r_A_solo.fp)/r_A_solo.fp:+.0f} % de bloqueos indebidos.",
      "limitación": "Costos fijos y uniformes; extrapolación lineal a 1.4 M de tarjetas."},
     {"evidencia": "6 · Recomendación y límites",
      "figura o tabla": "§12 análisis de error; §14 recomendación",
-     "conclusión": f"Complementar, no reemplazar. Mecanismo más difícil: {mec_peor_A} "
-                   f"(predicho de antemano en §2).",
+     "conclusión": f"{decision}. Mecanismo más difícil: {mec_peor_A}; dentro de él, "
+                   f"`deriva_inicial` (predicho de antemano en §2).",
      "limitación": "Confusor de sondeo mal calibrado (§12.3): sesga la §9 a favor de A."},
 ])
 pd.set_option("display.max_colwidth", 105)
@@ -1289,6 +1357,15 @@ resultados = {
     "permutacion_variantes": variantes.to_dict("records"),
     "atencion_en_historia": (float(acierta.mean()) if len(posiciones) else None),
     "episodios_cruzan_corte": n_cruzan,
+    "decision": decision,
+    "materialidad": {"en_dinero": bool(MATERIAL_EN_DINERO),
+                     "en_molestia": bool(MATERIAL_EN_MOLESTIA),
+                     "delta_ahorro_Q": float(delta_ahorro),
+                     "delta_ahorro_rel": float(delta_ahorro / r_A_solo.ahorro),
+                     "delta_fp": int(delta_fp),
+                     "delta_fp_rel": float(delta_fp / r_A_solo.fp),
+                     "delta_fn": int(delta_fn)},
+    "solo_A": r_A_solo.como_fila(),
     "cortes": {"fin_train": str(exp.cortes.fin_train), "fin_val": str(exp.cortes.fin_val)},
     "config_generador": {k: v for k, v in vars(cfg).items()},
 }
@@ -1302,9 +1379,7 @@ for f in sorted(DIR_ARTEFACTOS.iterdir()):
 
 code(r'''
 aucpr = {n: ev.auc_pr(y_test, p_test[n]) for n in p_test}
-r_A = ev.evaluar_en_umbral(y_test, p_test["A"], umbrales["A"])
 proy_mix = ev.proyeccion_mensual(r_mezcla, exp.dias_prueba, cfg.n_tarjetas)
-sube = r_mezcla.ahorro - r_A.ahorro
 
 print(f"""
 ==========================================================================
@@ -1317,47 +1392,53 @@ LO QUE MEDIMOS (AUC-PR en el conjunto de prueba, abierto una sola vez)
     C  híbrido con atención              : {aucpr['C']:.4f}
     A + B combinados                     : {aucpr_mix:.4f}
 
-RESPUESTA A LA PREGUNTA: ¿el orden aporta algo que los agregados no capturan?
+¿EL ORDEN APORTA ALGO QUE LOS AGREGADOS NO CAPTURAN?
 
-    SÍ, pero no de la forma que esperábamos.
+    1. El orden es real y el modelo lo usa. Barajar SOLO la historia -- dejando
+       fijo el evento calificado -- le cuesta a B un {100*res_B['caida_relativa_media']:.1f} % de su AUC-PR
+       ({res_B['auc_pr_original']:.3f} -> {res_B['auc_pr_barajado_medio']:.3f}), muy por encima del 15 % que fijamos
+       de antemano como umbral de evidencia.
 
-    1. El orden es real y el modelo lo usa. Barajarlo derrumba a B un {100*res_B['caida_relativa_media']:.0f} %
-       (AUC-PR {res_B['auc_pr_original']:.3f} -> {res_B['auc_pr_barajado_medio']:.3f}). Sin la secuencia, B no funciona.
+    2. Pero el modelo secuencial NO reemplaza al motor actual: A le gana en los
+       cuatro mecanismos. Con {int(y_train.sum()):,} transacciones fraudulentas en entrenamiento,
+       la red no alcanza a aprender por sí sola lo que las variables agregadas
+       ya codifican como conocimiento del dominio.
 
-    2. Pero un modelo secuencial NO reemplaza al motor actual. A supera a B en
-       los cuatro mecanismos. Con solo {int(y_train.sum()):,} transacciones fraudulentas en
-       entrenamiento, la red no alcanza a aprender por sí sola lo que las
-       variables agregadas ya codifican como conocimiento del dominio.
+    3. La señal secuencial no es redundante, pero su aporte es PEQUEÑO:
+       {d['diferencia']:+.4f} de AUC-PR (IC 95 % [{d['ic_inf']:+.4f}, {d['ic_sup']:+.4f}]). Es detectable y es
+       demasiado chico para justificar por sí solo un cambio de arquitectura.
+       Decirlo de otra forma sería exagerar.
 
-    3. La señal secuencial NO es redundante: al combinarla con A, el AUC-PR
-       {'sube' if COMPLEMENTARIEDAD else 'no sube de forma demostrable'} ({d['diferencia']:+.4f}, IC 95 % [{d['ic_inf']:+.4f}, {d['ic_sup']:+.4f}]).
-       Como esa señal depende del orden en un {100*res_B['caida_relativa_media']:.0f} %, lo que aporta ES orden.
+    4. Donde sí se nota: los bloqueos indebidos pasan de {r_A_solo.fp} a {r_mezcla.fp}
+       ({100*(r_mezcla.fp-r_A_solo.fp)/r_A_solo.fp:+.0f} %) con exhaustividad casi idéntica
+       ({r_A_solo.exhaustividad:.3f} -> {r_mezcla.exhaustividad:.3f}). Como un falso positivo cuesta 23 veces
+       menos que un fraude, eso casi no mueve la cuenta en quetzales
+       ({r_mezcla.ahorro - r_A_solo.ahorro:+,.0f}, {100*(r_mezcla.ahorro-r_A_solo.ahorro)/r_A_solo.ahorro:+.2f} %) pero sí son {abs(r_mezcla.fp-r_A_solo.fp)} clientes
+       legítimos menos a los que se les rechaza una compra.
 
-DECISIÓN: COMPLEMENTAR. No reemplazar, no conservar sin cambios.
-    Conservar el motor de agregados como columna vertebral y añadir el puntaje
-    secuencial como segunda entrada de una capa de decisión.
-    Ahorro sobre el conjunto de prueba ({exp.dias_prueba:.0f} días):
-        solo A            : Q{r_A.ahorro:>12,.0f}
-        A + B combinados  : Q{r_mezcla.ahorro:>12,.0f}   ({sube:+,.0f})
-    Proyección mensual a 1.4 M de tarjetas: Q{proy_mix['ahorro_mensual_cartera_Q']:,.0f}
-    (extrapolación lineal; es una cota indicativa, NO una promesa)
+DECISIÓN: {decision}.
+    Porque {justificacion}.
+    El beneficio que justificaría el piloto NO es detectar más fraude: es
+    molestar a menos clientes detectando el mismo fraude.
 
 DÓNDE FALLA, CONCRETAMENTE
-    - `toma_gradual` es el mecanismo que resiste a todos: AUC-PR {peor.loc['toma_gradual','aucpr_A']:.3f} incluso
-      para A. La señal se reparte en decenas de transacciones y K = 20 no cubre
-      el episodio completo.
-    - Los bloqueos de transacciones legítimas se concentran en montos altos:
-      el modelo penaliza el gasto atípico legítimo.
+    - El caso más difícil es `deriva_inicial`, la primera mitad de una toma
+      gradual de cuenta: AUC-PR {tabla_rol.set_index('rol').loc['deriva_inicial','aucpr_A']:.3f} para A y {tabla_rol.set_index('rol').loc['deriva_inicial','aucpr_B']:.3f} para B. Es el caso
+      que declaramos de antemano que fallaría, y falló.
+    - La atención de C señala una transacción anterior del episodio en apenas
+      {100*R_ATENCION:.0f} % de los casos, frente al 60 % que declaramos. Como explicación
+      para el analista, hoy no sirve.
+    - Los bloqueos indebidos se concentran en montos altos legítimos.
 
 CONDICIONES BAJO LAS QUE CAMBIARÍAMOS ESTA RECOMENDACIÓN
     1. Si en datos reales la caída por permutación fuera menor al 15 %, no
        habría evidencia de que el orden aporta y bastaría el motor actual.
     2. Si el costo de un falso positivo subiera de Q180 a más de ~Q900, la
-       asimetría 23:1 se estrecharía lo suficiente como para mover el umbral
-       óptimo y habría que recalcular toda la decisión.
-    3. Si el volumen de fraude etiquetado creciera en un orden de magnitud, la
-       conclusión 2 podría invertirse: la desventaja de B es de datos, no de
-       arquitectura, y con más ejemplos podría dejar de necesitarse A.
+       asimetría 23:1 se estrecharía y la reducción de bloqueos del punto 4
+       pasaría a ser económicamente decisiva, no marginal.
+    3. Si el volumen de fraude etiquetado creciera en un orden de magnitud, el
+       punto 2 podría invertirse: la desventaja de B parece ser de datos, no de
+       arquitectura.
     4. Si apareciera un mecanismo nuevo sin ejemplos etiquetados, ninguno de
        los modelos supervisados lo vería. Eso exigiría un componente no
        supervisado que este trabajo no cubre.
@@ -1370,16 +1451,22 @@ md(r"""
 
 ### Cierre — lo que este trabajo puede afirmar y lo que no
 
-**Puede afirmar** que el orden de las transacciones es información real y
-utilizable: barajar la historia —manteniendo fijos los eventos, sus valores y la
-transacción que se califica— degrada sustancialmente al modelo secuencial, que
-además colapsa justamente en el mecanismo que construimos sin estructura
-temporal. Puede afirmar también que esa información **no es redundante** con las
-variables agregadas, porque combinarla con ellas mejora la detección por encima
-de lo que logra el motor de agregados solo.
+**Puede afirmar** que el orden de las transacciones es información real: barajar
+la historia —manteniendo fijos los eventos, sus valores y la transacción que se
+califica— degrada sustancialmente al modelo secuencial, que además colapsa
+justamente en el mecanismo que construimos sin estructura temporal. Y puede
+afirmar que esa información **no es del todo redundante** con las variables
+agregadas.
 
-**No puede afirmar** que un modelo de secuencias deba reemplazar al motor
-actual. No lo logró en ningún mecanismo. La lectura más probable es que, con el
+**No puede afirmar que valga mucho.** El aporte de la señal secuencial sobre el
+motor actual es detectable pero de milésimas de AUC-PR, y en quetzales es
+prácticamente nulo. El único beneficio que encontramos con una magnitud
+defendible es la caída de bloqueos indebidos a igual exhaustividad —un beneficio
+de experiencia del cliente, no de detección—. Presentar este trabajo como
+«las secuencias mejoran la detección de fraude» sería exagerar lo que medimos.
+
+**Tampoco puede afirmar** que un modelo de secuencias deba reemplazar al motor
+actual: no lo superó en ningún mecanismo. La lectura más probable es que, con el
 número de transacciones fraudulentas que hay en entrenamiento (ver §4), la red
 esté limitada por datos y no por arquitectura: las variables agregadas son
 conocimiento del dominio ya destilado, y la red tendría que redescubrirlo desde

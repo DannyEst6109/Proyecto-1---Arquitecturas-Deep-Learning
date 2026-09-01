@@ -75,7 +75,7 @@ ESTILO = """
 @page { size: A4; margin: 16mm 15mm 14mm 15mm; }
 * { box-sizing: border-box; }
 body { font-family: Georgia, 'Times New Roman', serif; font-size: 9.6pt;
-       line-height: 1.42; color: #1a1a1a; margin: 0; }
+       line-height: 1.42; color: #1a1a1a; margin: 0; background: #fff; }
 h1 { font-size: 17pt; margin: 0 0 2px; letter-spacing: -.3px; }
 h2 { font-size: 11.5pt; margin: 15px 0 6px; padding-bottom: 3px;
      border-bottom: 1.5px solid #1f3a5f; color: #1f3a5f; }
@@ -134,8 +134,12 @@ def construir_informe(R: dict) -> str:
     dias = R["dias_prueba"]
     apuesta = R["apuesta_C"]
 
+    mat = R.get("materialidad", {})
+    decision = R.get("decision", "conservar el motor actual")
     mejora_orden = comp["existe"]
     verbo = "aporta" if mejora_orden else "no aporta de forma demostrable"
+    # Magnitud, no solo signo: es lo que separa "detectable" de "importante".
+    material = mat.get("en_dinero") or mat.get("en_molestia")
 
     # Contraste entre la permutación controlada y la versión sin control, si el
     # cuaderno lo registró.
@@ -207,20 +211,24 @@ def construir_informe(R: dict) -> str:
 tienen un patrón que no está en los montos sino en el orden de las operaciones.
 El motor actual resume cada ventana en variables agregadas, y esas variables
 tienen una propiedad incómoda: <b>son idénticas si se baraja la secuencia</b>.</p>
-<p><b>La respuesta corta.</b> Sí, el orden {verbo} información que los agregados no
-capturan — pero un modelo de secuencias <b>no reemplaza</b> al motor actual.
-Recomendamos <b>complementar</b>.</p>
+<p><b>La respuesta corta.</b> El orden <b>sí</b> es información real —lo demostramos—
+pero <b>vale mucho menos de lo que esperábamos</b>. Un modelo de secuencias no
+supera al motor actual en ningún mecanismo, y sumárselo mejora la detección solo
+en milésimas. El único beneficio con magnitud defendible es otro:
+<b>{pct(abs(mat.get("delta_fp_rel", 0)), 0)} menos bloqueos a clientes legítimos</b>
+detectando prácticamente el mismo fraude.</p>
+<p><b>Recomendación: {decision.lower()}.</b></p>
 </div>
 
 <div class="banda">
   <div class="tarjeta"><div class="k">{pct(perm["B"], 0)}</div>
-    <div class="e">del desempeño se pierde al barajar el orden</div></div>
+    <div class="e">del desempeño secuencial se pierde al barajar la historia</div></div>
   <div class="tarjeta"><div class="k">{ap["A"]:.3f}</div>
-    <div class="e">AUC-PR del motor actual (el mejor individual)</div></div>
-  <div class="tarjeta"><div class="k">{comp["diferencia_vs_A"]:+.3f}</div>
-    <div class="e">gana el motor actual al sumarle la señal de orden</div></div>
-  <div class="tarjeta"><div class="k">{q(proy["ahorro_mensual_cartera_Q"] / 1e6, 1)}M</div>
-    <div class="e">ahorro mensual proyectado a la cartera</div></div>
+    <div class="e">AUC-PR del motor actual — el mejor modelo individual</div></div>
+  <div class="tarjeta"><div class="k">{comp["diferencia_vs_A"]:+.4f}</div>
+    <div class="e">lo único que gana al sumarle la señal de orden</div></div>
+  <div class="tarjeta"><div class="k">{mat.get("delta_fp", 0):+d}</div>
+    <div class="e">bloqueos indebidos, a igual exhaustividad</div></div>
 </div>
 
 <h2>1 · Qué medimos y con qué datos</h2>
@@ -319,14 +327,22 @@ escalada, y no ocurrió. Lo reportamos como falló.</p>
 aporta información que los agregados <b>no capturan</b>. Que B pierda no significa
 que su señal sea redundante. Lo comprobamos combinando ambos puntajes con una
 mezcla ajustada <b>solo en validación</b>:</p>
-<div class="{"caja" if mejora_orden else "alerta"}">
+<div class="caja">
 <p>Al sumar la señal secuencial al motor actual, el AUC-PR pasa de
 <b>{ap["A"]:.4f}</b> a <b>{ap["mezcla_AB"]:.4f}</b>
-({comp["diferencia_vs_A"]:+.4f}; IC 95 % [{comp["ic_inf"]:+.4f}, {comp["ic_sup"]:+.4f}]).</p>
-<p><b>Cadena de evidencia:</b> el desempeño de B depende del orden en un
-{pct(perm["B"], 0)} <i>(prueba 1)</i> y B aporta señal que A no tiene
-<i>(esta mezcla)</i> ⟹ <b>el orden aporta información que los agregados no
-capturan</b>.</p>
+({comp["diferencia_vs_A"]:+.4f}; IC 95 % [{comp["ic_inf"]:+.4f}, {comp["ic_sup"]:+.4f}]).
+El intervalo no cruza cero: la señal de orden <b>no es redundante</b>.</p>
+</div>
+<div class="alerta">
+<p><b>Pero detectable no es lo mismo que importante.</b> Con casi 40,000
+transacciones de prueba se detectan diferencias minúsculas, y confundir ambas
+cosas es la forma más común de exagerar un resultado. La mejora de
+{comp["diferencia_vs_A"]:+.4f} en AUC-PR es de milésimas.</p>
+<p>El criterio de relevancia no lo inventamos nosotros: es la moneda que fijó el
+comité. En la sección 5 se traduce a quetzales y a clientes molestados, y ahí se
+ve que <b>el dinero apenas se mueve</b> mientras que <b>los bloqueos indebidos sí
+bajan de forma apreciable</b>. Esa —y no la detección— es la razón por la que el
+orden podría valer la pena.</p>
 </div>
 
 <h3>¿Cuánta historia hace falta?</h3>
@@ -370,11 +386,23 @@ ajustó en validación y se aplicó sin cambios a prueba.</p>
       f'{mezcla["FP"]}', q(mezcla["costo_Q"]), f'<b>{q(mezcla["ahorro_Q"])}</b>']],
     clases="")}
 
-<p>Sobre los {dias:.0f} días del conjunto de prueba, añadir la señal de orden
-{"ahorra" if mezcla["ahorro_Q"] > solo_a["ahorro_Q"] else "cuesta"}
-<b>{q(abs(mezcla["ahorro_Q"] - solo_a["ahorro_Q"]))}</b> respecto a usar solo el motor
-actual. Extrapolado a la cartera de 1.4 millones de tarjetas, el ahorro mensual
-sería de <b>{q(proy["ahorro_mensual_cartera_Q"])}</b>, con
+<p><b>Aquí está el hallazgo que importa.</b> Sobre los {dias:.0f} días del conjunto de
+prueba, añadir la señal de orden cambia el ahorro en apenas
+<b>{q(mezcla["ahorro_Q"] - solo_a["ahorro_Q"])}</b> ({pct(mat.get("delta_ahorro_rel", 0), 2)}):
+en dinero, es indistinguible de no hacer nada. Pero los bloqueos a clientes
+legítimos caen de <b>{solo_a["FP"]}</b> a <b>{mezcla["FP"]}</b>
+({pct(abs(mat.get("delta_fp_rel", 0)), 0)} menos) mientras la exhaustividad se
+mantiene prácticamente igual ({solo_a["exhaustividad"]:.3f} → {mezcla["exhaustividad"]:.3f}).</p>
+
+<p>La razón de esa asimetría es aritmética: un bloqueo indebido cuesta 23 veces
+menos que un fraude, así que evitar {abs(mat.get("delta_fp", 0))} bloqueos casi no
+mueve la cuenta. Pero son {abs(mat.get("delta_fp", 0))} clientes reales a los que
+no se les rechaza una compra, y ese beneficio no aparece en el AUC-PR ni en el
+balance. <b>El caso a favor del modelo secuencial es de experiencia del cliente,
+no de detección de fraude.</b></p>
+
+<p>Extrapolado a la cartera de 1.4 millones de tarjetas, el ahorro mensual total
+frente a no hacer nada sería de <b>{q(proy["ahorro_mensual_cartera_Q"])}</b>, con
 {proy["bloqueos_legitimos_por_mes"]:,.0f} bloqueos indebidos y
 {proy["fraudes_no_detectados_por_mes"]:,.0f} fraudes que aún pasarían al mes.</p>
 <div class="alerta"><p><b>Advertencia sobre esta cifra.</b> La extrapolación es lineal:
@@ -387,11 +415,16 @@ dimensionar la decisión, <b>no una promesa de ahorro</b>.</p></div>
 punteadas marcan los umbrales elegidos) y ahorro en prueba (derecha).</figcaption></figure>
 
 <h2 class="salto">6 · Recomendación, errores y límites</h2>
-<div class="caja"><p><b>Recomendación: complementar, no reemplazar.</b> Conservar el
-motor de agregados como columna vertebral y añadir el puntaje secuencial como
-segunda entrada de la capa de decisión. El motor actual resuelve bien los
-fraudes cuyo indicio está en la magnitud; la señal de orden aporta donde ese
-motor es ciego por construcción.</p></div>
+<div class="caja"><p><b>Recomendación: {decision.lower()}.</b> El motor de agregados
+es y sigue siendo la columna vertebral: resuelve bien los fraudes cuyo indicio
+está en la magnitud y ningún modelo de los que probamos lo supera.</p>
+<p>Lo que justificaría incorporar la señal secuencial <b>no es detectar más
+fraude</b> —eso no lo logra— sino <b>molestar a menos clientes detectando el
+mismo fraude</b>. Si el área de experiencia del cliente considera que
+{pct(abs(mat.get("delta_fp_rel", 0)), 0)} menos rechazos indebidos vale el costo de
+mantener un segundo modelo en producción, el piloto se justifica. Si la
+prioridad es puramente reducir pérdidas por fraude, con la evidencia actual
+<b>no</b>.</p></div>
 
 <h3>Por qué el modelo secuencial no ganó por sí solo</h3>
 <p>La explicación más probable no es la arquitectura sino los <b>datos</b>: el
@@ -470,7 +503,7 @@ ESTILO_SLIDES = """
 @page { size: A4 landscape; margin: 0; }
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; margin: 0;
-       color: #14243b; }
+       color: #14243b; background: #fff; }
 .s { width: 297mm; height: 209mm; padding: 15mm 18mm; page-break-after: always;
      position: relative; display: flex; flex-direction: column; }
 .s:last-child { page-break-after: auto; }
@@ -514,6 +547,8 @@ def construir_presentacion(R: dict) -> str:
     perm, proy = R["caida_permutacion"], R["proyeccion_mezcla"]
     mezcla, solo_a = eco["mezcla_AB"], eco["A"]
     apuesta = R["apuesta_C"]
+    mat = R.get("materialidad", {})
+    decision = R.get("decision", "Conservar el motor actual")
     vs = [m for m in R["por_mecanismo"] if m["mecanismo"] == "vaciado_subito"][0]
 
     filas = "".join(
@@ -603,65 +638,76 @@ def construir_presentacion(R: dict) -> str:
 
 <div class="s">
   <h2>Entonces, ¿el orden aporta o no?</h2>
-  <p>Que B <b>pierda</b> no significa que su señal sea <b>redundante</b>. Lo comprobamos
-  combinando ambos puntajes (mezcla ajustada solo en validación):</p>
+  <p>Que B <b>pierda</b> no significa que su señal sea <b>redundante</b>. Combinamos
+  ambos puntajes (mezcla ajustada solo en validación):</p>
   <div class="tarjetas">
-    <div class="t"><div class="k">{ap["A"]:.3f}</div><div class="e">Motor actual solo</div></div>
-    <div class="t"><div class="k">{ap["mezcla_AB"]:.3f}</div><div class="e">Motor + señal de orden</div></div>
-    <div class="t"><div class="k">{comp["diferencia_vs_A"]:+.3f}</div>
-      <div class="e">IC 95 % [{comp["ic_inf"]:+.3f}, {comp["ic_sup"]:+.3f}]</div></div>
+    <div class="t"><div class="k">{ap["A"]:.4f}</div><div class="e">Motor actual solo</div></div>
+    <div class="t"><div class="k">{ap["mezcla_AB"]:.4f}</div><div class="e">Motor + señal de orden</div></div>
+    <div class="t"><div class="k">{comp["diferencia_vs_A"]:+.4f}</div>
+      <div class="e">IC 95 % [{comp["ic_inf"]:+.4f}, {comp["ic_sup"]:+.4f}] — no cruza cero</div></div>
   </div>
-  <div class="caja" style="margin-top:16px">
-  <b>Cadena de evidencia</b><br>
-  (1) el desempeño de B depende del orden en un {100 * perm["B"]:.0f} % &nbsp;<i>(prueba 1)</i><br>
-  (2) B aporta señal que A no tiene &nbsp;<i>(esta mezcla)</i><br>
-  <b>⟹ el orden aporta información que los agregados no capturan.</b>
-  </div>
+  <div class="warn" style="margin-top:14px"><b>Detectable ≠ importante.</b> El
+  intervalo excluye el cero, así que la señal de orden no es redundante. Pero la
+  mejora es de <b>milésimas</b>. Con 40,000 transacciones de prueba se detectan
+  diferencias minúsculas; presentar esto como «las secuencias mejoran la
+  detección» sería exagerar lo que medimos.</div>
+  <p style="margin-top:10px">El criterio de relevancia lo puso el comité:
+  quetzales. Siguiente diapositiva.</p>
   {pie(6)}
 </div>
 
 <div class="s">
-  <h2>La decisión en quetzales</h2>
-  <div class="cols"><div class="col">
-    <p>Costos del comité: <b>Q4,200</b> por fraude que pasa, <b>Q180</b> por bloqueo
-    indebido. Asimetría <b>23 : 1</b>.</p>
-    <p>Por eso el umbral <b>no</b> maximiza F1 —eso trataría ambos errores como
-    iguales— sino que <b>minimiza costo esperado</b>. Ajustado en validación.</p>
-    <div class="warn">La proyección a 1.4 M de tarjetas es <b>lineal</b>: cota
-    indicativa, no promesa.</div>
-  </div><div class="col">
-    <table><thead><tr><th>Escenario</th><th>Ahorro en prueba</th></tr></thead><tbody>
-    <tr><td>No hacer nada</td><td>—</td></tr>
-    <tr><td>Solo motor actual</td><td>Q{solo_a["ahorro_Q"]:,.0f}</td></tr>
-    <tr class="hi"><td>Motor + orden</td><td>Q{mezcla["ahorro_Q"]:,.0f}</td></tr>
-    </tbody></table>
-    <div class="grande" style="font-size:34pt;margin-top:18px">Q{proy["ahorro_mensual_cartera_Q"] / 1e6:.1f}M</div>
-    <div class="gsub">ahorro mensual proyectado a la cartera</div>
-  </div></div>
+  <h2>La decisión en quetzales — y el hallazgo real</h2>
+  <p>Costos del comité: <b>Q4,200</b> por fraude que pasa, <b>Q180</b> por bloqueo
+  indebido. Asimetría <b>23 : 1</b>, así que el umbral minimiza costo esperado, no F1.</p>
+  <table><thead><tr><th>Escenario</th><th>Fraudes que pasan</th>
+    <th>Bloqueos indebidos</th><th>Ahorro en prueba</th></tr></thead><tbody>
+  <tr><td>Solo motor actual</td><td>{solo_a["FN"]}</td><td>{solo_a["FP"]}</td>
+      <td>Q{solo_a["ahorro_Q"]:,.0f}</td></tr>
+  <tr class="hi"><td>Motor + señal de orden</td><td>{mezcla["FN"]}</td>
+      <td>{mezcla["FP"]}</td><td>Q{mezcla["ahorro_Q"]:,.0f}</td></tr>
+  </tbody></table>
+  <div class="cols" style="margin-top:12px">
+    <div class="col"><div class="warn"><b>En dinero: nada.</b>
+    {q(mezcla["ahorro_Q"] - solo_a["ahorro_Q"])} de diferencia
+    ({pct(mat.get("delta_ahorro_rel", 0), 2)}). Indistinguible de no hacer nada.</div></div>
+    <div class="col"><div class="caja"><b>En clientes: sí.</b>
+    {abs(mat.get("delta_fp", 0))} bloqueos indebidos menos
+    ({pct(abs(mat.get("delta_fp_rel", 0)), 0)}) a igual exhaustividad.</div></div>
+  </div>
+  <p style="margin-top:10px"><b>El caso a favor del orden es de experiencia del
+  cliente, no de detección de fraude.</b> Un falso positivo cuesta 23 veces menos,
+  así que evitar {abs(mat.get("delta_fp", 0))} de ellos casi no mueve el balance —
+  pero son {abs(mat.get("delta_fp", 0))} personas a las que no se les rechaza una compra.</p>
   {pie(7)}
 </div>
 
 <div class="s">
   <h2>Recomendación y límites</h2>
-  <div class="caja"><b>Complementar, no reemplazar.</b> Conservar el motor de
-  agregados y añadir el puntaje secuencial como segunda entrada de la decisión.</div>
+  <div class="caja"><b>{decision}.</b> Lo que justificaría el piloto no es detectar
+  más fraude —eso no lo logra— sino molestar a menos clientes detectando el mismo.</div>
   <div class="cols"><div class="col">
-    <p><b>Por qué B no ganó solo</b><br>Solo ~1,900 fraudes etiquetados. Los agregados
-    son conocimiento del dominio ya destilado; la red debe redescubrirlo con
-    muy pocos positivos. <b>Es un límite de datos, no de arquitectura.</b></p>
+    <p><b>Por qué B no ganó solo</b><br>Pocos fraudes etiquetados en entrenamiento.
+    Los agregados son conocimiento del dominio ya destilado; la red debe
+    redescubrirlo con muy pocos positivos. <b>Parece un límite de datos, no de
+    arquitectura</b> — y eso es comprobable.</p>
     <p><b>Nuestra apuesta C {"se cumplió" if apuesta["exitosa"] else "falló"}</b>
-    ({apuesta["margen_val"]:+.3f} vs +{apuesta["umbral_declarado"]} exigido).
-    Pre-registrada en git; la reportamos como quedó.</p>
+    ({apuesta["margen_val"]:+.3f} frente al +{apuesta["umbral_declarado"]} exigido).
+    Pre-registrada en git antes de ver el test; la reportamos como quedó.</p>
   </div><div class="col">
     <p><b>Límites que declaramos</b></p>
     <ul>
       <li>Datos sintéticos: no dicen nada del fraude real.</li>
-      <li>Defecto propio: nuestros confusores de sondeo se separan por monto,
-      no solo por orden — sesga la prueba 2 a favor de A.</li>
+      <li><b>Defecto de nuestro propio generador:</b> los sondeos fraudulentos y
+      las rachas legítimas se separan por monto, no solo por orden — eso sesga
+      la prueba 2 a favor del motor de agregados.</li>
+      <li>La atención de C explica el caso en apenas
+      {pct(R.get("atencion_en_historia") or 0, 0)} de las veces, frente al 60 %
+      declarado. Hoy no sirve como explicación.</li>
       <li>Una sola semilla por variante.</li>
     </ul>
-    <div class="warn"><b>Siguiente paso:</b> correr la permutación sobre los datos
-    reales del banco. Es una tarde de trabajo, no un proyecto.</div>
+    <div class="warn"><b>Siguiente paso:</b> correr la permutación y la prueba de
+    complementariedad sobre los datos reales del banco. Es una tarde de trabajo.</div>
   </div></div>
   {pie(8)}
 </div>

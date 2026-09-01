@@ -1,0 +1,374 @@
+{
+  "candidato": "mezcla_AB",
+  "umbral_mezcla": 0.7609901952059206,
+  "k": 20,
+  "n_transacciones": 260158,
+  "tasa_fraude": 0.010670438733385097,
+  "aucpr_test": {
+    "A": 0.9509267165613289,
+    "B": 0.8602138958356776,
+    "C1": 0.8521262580197306,
+    "C": 0.8574314103750892,
+    "mezcla_AB": 0.9522367362290506
+  },
+  "complementariedad": {
+    "existe": true,
+    "diferencia_vs_A": 0.0013100196677217069,
+    "ic_inf": 6.822595071980244e-05,
+    "ic_sup": 0.0026742165079622097,
+    "coef_A": 0.747790149579874,
+    "coef_B": 0.08458594704012012
+  },
+  "economia": {
+    "A": {
+      "umbral": 0.0016807699091421773,
+      "precision": 0.567741935483871,
+      "exhaustividad": 0.962800875273523,
+      "f1": 0.7142857142857142,
+      "TP": 440,
+      "FP": 335,
+      "FN": 17,
+      "TN": 38581,
+      "costo_Q": 131700.0,
+      "ahorro_Q": 1787700.0
+    },
+    "B": {
+      "umbral": 0.32669773473775293,
+      "precision": 0.45861297539149887,
+      "exhaustividad": 0.8971553610503282,
+      "f1": 0.6069578090303479,
+      "TP": 410,
+      "FP": 484,
+      "FN": 47,
+      "TN": 38432,
+      "costo_Q": 284520.0,
+      "ahorro_Q": 1634880.0
+    },
+    "C1": {
+      "umbral": 0.8668125110461273,
+      "precision": 0.4645760743321719,
+      "exhaustividad": 0.87527352297593,
+      "f1": 0.6069802731411229,
+      "TP": 400,
+      "FP": 461,
+      "FN": 57,
+      "TN": 38455,
+      "costo_Q": 322380.0,
+      "ahorro_Q": 1597020.0
+    },
+    "C": {
+      "umbral": 0.505428256845109,
+      "precision": 0.49627791563275436,
+      "exhaustividad": 0.87527352297593,
+      "f1": 0.6334125098970705,
+      "TP": 400,
+      "FP": 406,
+      "FN": 57,
+      "TN": 38510,
+      "costo_Q": 312480.0,
+      "ahorro_Q": 1606920.0
+    },
+    "mezcla_AB": {
+      "umbral": 0.7609901952059206,
+      "precision": 0.6454948301329394,
+      "exhaustividad": 0.9562363238512035,
+      "f1": 0.7707231040564374,
+      "TP": 437,
+      "FP": 240,
+      "FN": 20,
+      "TN": 38676,
+      "costo_Q": 127200.0,
+      "ahorro_Q": 1792200.0
+    }
+  },
+  "proyeccion_mezcla": {
+    "ahorro_mensual_muestra_Q": 1475151.3672826253,
+    "ahorro_mensual_cartera_Q": 516302978.54891884,
+    "costo_mensual_con_modelo_Q": 36644202.026237294,
+    "costo_mensual_sin_modelo_Q": 552947180.5751562,
+    "bloqueos_legitimos_por_mes": 69140.00382308922,
+    "fraudes_no_detectados_por_mes": 5761.666985257436,
+    "factor_tiempo": 0.8230952836082052,
+    "factor_cartera": 350.0
+  },
+  "dias_prueba": 36.44778508326389,
+  "recorte_historia": [
+    {
+      "historia_visible": 1,
+      "auc_pr": 0.32958049424108177
+    },
+    {
+      "historia_visible": 2,
+      "auc_pr": 0.5627057364983763
+    },
+    {
+      "historia_visible": 3,
+      "auc_pr": 0.6996490964613495
+    },
+    {
+      "historia_visible": 5,
+      "auc_pr": 0.815852077237407
+    },
+    {
+      "historia_visible": 10,
+      "auc_pr": 0.8602839295042892
+    },
+    {
+      "historia_visible": 15,
+      "auc_pr": 0.8588370129081013
+    },
+    {
+      "historia_visible": 20,
+      "auc_pr": 0.8602138958356776
+    }
+  ],
+  "por_mecanismo": [
+    {
+      "mecanismo": "escalada_prueba",
+      "n_fraudes": 195,
+      "tasa_base": 0.004985809618777326,
+      "aucpr_A": 0.969530339064367,
+      "lift_A": 194.45795431357158,
+      "exhaustividad_A": 0.9897435897435898,
+      "aucpr_B": 0.909857010756592,
+      "lift_B": 182.48932075744136,
+      "exhaustividad_B": 0.9794871794871794,
+      "aucpr_C1": 0.9210517451588387,
+      "lift_C1": 184.73464002516585,
+      "exhaustividad_C1": 0.9487179487179487,
+      "aucpr_C": 0.853949098404085,
+      "lift_C": 171.27591378298547,
+      "exhaustividad_C": 0.9230769230769231,
+      "ventaja_B_sobre_A": -0.05967332830777505,
+      "ventaja_C_sobre_A": -0.11558124066028208
+    },
+    {
+      "mecanismo": "rafaga_geografica",
+      "n_fraudes": 69,
+      "tasa_base": 0.0017699115044247787,
+      "aucpr_A": 0.9210033686780592,
+      "lift_A": 520.3669033031034,
+      "exhaustividad_A": 0.9855072463768116,
+      "aucpr_B": 0.9086611017737515,
+      "lift_B": 513.3935225021696,
+      "exhaustividad_B": 0.9710144927536232,
+      "aucpr_C1": 0.8052225434589336,
+      "lift_C1": 454.9507370542975,
+      "exhaustividad_C1": 0.9855072463768116,
+      "aucpr_C": 0.8607106376356163,
+      "lift_C": 486.3015102641232,
+      "exhaustividad_C": 0.9855072463768116,
+      "ventaja_B_sobre_A": -0.01234226690430773,
+      "ventaja_C_sobre_A": -0.060292731042442926
+    },
+    {
+      "mecanismo": "toma_gradual",
+      "n_fraudes": 166,
+      "tasa_base": 0.004247479658154649,
+      "aucpr_A": 0.8365739411160423,
+      "lift_A": 196.9577275102239,
+      "exhaustividad_A": 0.9156626506024096,
+      "aucpr_B": 0.6449182299986892,
+      "lift_B": 151.83550761932995,
+      "exhaustividad_B": 0.7530120481927711,
+      "aucpr_C1": 0.6483287771021307,
+      "lift_C1": 152.63846546208114,
+      "exhaustividad_C1": 0.7469879518072289,
+      "aucpr_C": 0.7100450785457434,
+      "lift_C": 167.16856481761894,
+      "exhaustividad_C": 0.7650602409638554,
+      "ventaja_B_sobre_A": -0.19165571111735313,
+      "ventaja_C_sobre_A": -0.12652886257029894
+    },
+    {
+      "mecanismo": "vaciado_subito",
+      "n_fraudes": 27,
+      "tasa_base": 0.0006933210076265311,
+      "aucpr_A": 0.888812690176162,
+      "lift_A": 1281.964170130751,
+      "exhaustividad_A": 1.0,
+      "aucpr_B": 0.20610572433739696,
+      "lift_B": 297.27315640263885,
+      "exhaustividad_B": 1.0,
+      "aucpr_C1": 0.19049785636608665,
+      "lift_C1": 274.7614081653523,
+      "exhaustividad_C1": 0.8518518518518519,
+      "aucpr_C": 0.45873672908967905,
+      "lift_C": 661.651275590347,
+      "exhaustividad_C": 0.9259259259259259,
+      "ventaja_B_sobre_A": -0.6827069658387651,
+      "ventaja_C_sobre_A": -0.430075961086483
+    }
+  ],
+  "por_rol": [
+    {
+      "rol": "deriva_avanzada",
+      "n_fraudes": 89,
+      "tasa_base": 0.002281758748878349,
+      "aucpr_A": 0.9789242001302674,
+      "lift_A": 429.0217800683267,
+      "exhaustividad_A": 1.0,
+      "aucpr_B": 0.9064882565992558,
+      "lift_B": 397.2761174006064,
+      "exhaustividad_B": 0.9775280898876404,
+      "aucpr_C1": 0.886821859663784,
+      "lift_C1": 388.65715321557184,
+      "exhaustividad_C1": 0.9775280898876404,
+      "aucpr_C": 0.9335653008625445,
+      "lift_C": 409.14286022633195,
+      "exhaustividad_C": 0.9775280898876404,
+      "ventaja_B_sobre_A": -0.07243594353101157,
+      "ventaja_C_sobre_A": -0.04535889926772285
+    },
+    {
+      "rol": "deriva_inicial",
+      "n_fraudes": 77,
+      "tasa_base": 0.0019747134100992487,
+      "aucpr_A": 0.5133367171675792,
+      "lift_A": 259.95504691578464,
+      "exhaustividad_A": 0.8181818181818182,
+      "aucpr_B": 0.1501145064674366,
+      "lift_B": 76.0183759829189,
+      "exhaustividad_B": 0.4935064935064935,
+      "aucpr_C1": 0.23851129625369402,
+      "lift_C1": 120.78273993273105,
+      "exhaustividad_C1": 0.4805194805194805,
+      "aucpr_C": 0.30805018230894593,
+      "lift_C": 155.99741245159387,
+      "exhaustividad_C": 0.5194805194805194,
+      "ventaja_B_sobre_A": -0.3632222107001426,
+      "ventaja_C_sobre_A": -0.2052865348586333
+    },
+    {
+      "rol": "golpe",
+      "n_fraudes": 44,
+      "tasa_base": 0.0011293634496919917,
+      "aucpr_A": 0.983315702065702,
+      "lift_A": 870.6813580109034,
+      "exhaustividad_A": 1.0,
+      "aucpr_B": 0.9844092416287774,
+      "lift_B": 871.6496375876629,
+      "exhaustividad_B": 1.0,
+      "aucpr_C1": 0.8619240274116705,
+      "lift_C1": 763.1945479081519,
+      "exhaustividad_C1": 0.9545454545454546,
+      "aucpr_C": 0.9599572290268815,
+      "lift_C": 849.9984918838024,
+      "exhaustividad_C": 1.0,
+      "ventaja_B_sobre_A": 0.0010935395630754519,
+      "ventaja_C_sobre_A": -0.023358473038820438
+    },
+    {
+      "rol": "monto_atipico",
+      "n_fraudes": 27,
+      "tasa_base": 0.0006933210076265311,
+      "aucpr_A": 0.888812690176162,
+      "lift_A": 1281.964170130751,
+      "exhaustividad_A": 1.0,
+      "aucpr_B": 0.20610572433739696,
+      "lift_B": 297.27315640263885,
+      "exhaustividad_B": 1.0,
+      "aucpr_C1": 0.19049785636608665,
+      "lift_C1": 274.7614081653523,
+      "exhaustividad_C1": 0.8518518518518519,
+      "aucpr_C": 0.45873672908967905,
+      "lift_C": 661.651275590347,
+      "exhaustividad_C": 0.9259259259259259,
+      "ventaja_B_sobre_A": -0.6827069658387651,
+      "ventaja_C_sobre_A": -0.430075961086483
+    },
+    {
+      "rol": "salto_geografico",
+      "n_fraudes": 69,
+      "tasa_base": 0.0017699115044247787,
+      "aucpr_A": 0.9210033686780592,
+      "lift_A": 520.3669033031034,
+      "exhaustividad_A": 0.9855072463768116,
+      "aucpr_B": 0.9086611017737515,
+      "lift_B": 513.3935225021696,
+      "exhaustividad_B": 0.9710144927536232,
+      "aucpr_C1": 0.8052225434589336,
+      "lift_C1": 454.9507370542975,
+      "exhaustividad_C1": 0.9855072463768116,
+      "aucpr_C": 0.8607106376356163,
+      "lift_C": 486.3015102641232,
+      "exhaustividad_C": 0.9855072463768116,
+      "ventaja_B_sobre_A": -0.01234226690430773,
+      "ventaja_C_sobre_A": -0.060292731042442926
+    },
+    {
+      "rol": "sondeo",
+      "n_fraudes": 151,
+      "tasa_base": 0.003865154734174623,
+      "aucpr_A": 0.9564940526457127,
+      "lift_A": 247.4659149318547,
+      "exhaustividad_A": 0.9867549668874173,
+      "aucpr_B": 0.8666983026490228,
+      "lift_B": 224.2337919840356,
+      "exhaustividad_B": 0.9735099337748344,
+      "aucpr_C1": 0.9065609823271074,
+      "lift_C1": 234.54713838790136,
+      "exhaustividad_C1": 0.9470198675496688,
+      "aucpr_C": 0.7894181595300866,
+      "lift_C": 204.23973005537678,
+      "exhaustividad_C": 0.9006622516556292,
+      "ventaja_B_sobre_A": -0.08979574999668993,
+      "ventaja_C_sobre_A": -0.1670758931156261
+    }
+  ],
+  "apuesta_C": {
+    "margen_val": -0.08712065715337303,
+    "exitosa": false,
+    "umbral_declarado": 0.02,
+    "aporte_atencion_C1_menos_B": 0.029555359116113844,
+    "aporte_agregadas_C2_menos_C1": 0.006609300544106356
+  },
+  "aucpr_val": {
+    "A": 0.9495895827701839,
+    "B": 0.8263042659565907,
+    "C1": 0.8558596250727045,
+    "C": 0.8624689256168109
+  },
+  "caida_permutacion": {
+    "B": 0.4340139675237692,
+    "C": 0.21879800010933553
+  },
+  "permutacion_variantes": [
+    {
+      "variante": "solo la historia (controlada)",
+      "auc_pr_original": 0.8602138958356776,
+      "auc_pr_barajado": 0.4829371619283704,
+      "caida_relativa": 0.43858479354229885
+    },
+    {
+      "variante": "toda la ventana (sin control)",
+      "auc_pr_original": 0.8602138958356776,
+      "auc_pr_barajado": 0.08390181732250972,
+      "caida_relativa": 0.9024640060702565
+    }
+  ],
+  "atencion_en_historia": 0.13970588235294118,
+  "episodios_cruzan_corte": 15,
+  "cortes": {
+    "fin_train": "2025-06-20 02:19:19.933799394",
+    "fin_val": "2025-07-26 13:04:14.112793398"
+  },
+  "config_generador": {
+    "semilla": 20853,
+    "n_tarjetas": 4000,
+    "fecha_inicio": "2025-01-01",
+    "dias": 243,
+    "forma_tasa": 3.0,
+    "escala_tasa": 0.085,
+    "prop_victimas": 0.1,
+    "pesos_mecanismos": {
+      "escalada_prueba": 0.32,
+      "rafaga_geografica": 0.26,
+      "vaciado_subito": 0.26,
+      "toma_gradual": 0.16
+    },
+    "prop_racha_suscripciones": 0.22,
+    "prop_compra_grande": 0.3,
+    "prop_viaje": 0.24
+  }
+}

@@ -1,0 +1,7 @@
+evidencia,figura o tabla,conclusión,limitación
+1 · Integridad de datos,"§2 composición, fig1_datos.png; §3 tabla de 4 controles","260,158 tx, 1.07 % fraude, partición temporal 70/15/15; los 4 controles de fuga pasan.",Datos sintéticos: la validez externa no está demostrada.
+2 · Comparación común A vs B,"§7 tabla de comparación, fig2_comparacion.png","AUC-PR prueba: A 0.951, B 0.860, C 0.857, A+B 0.952. A supera a B (dif. +0.001 para la mezcla).","B no recibe agregadas; parte de la brecha es de representación, no de orden."
+3 · Valor del orden,§8 fig3_permutacion.png; §9 fig4_mecanismos.png; §11.5,"Barajar reduce AUC-PR de B en 43 % y de C en 22 %. B colapsa en el control sin orden (vaciado_subito: 0.206 vs 0.889 de A), como se predijo.","B no supera a A en ningún mecanismo: el orden aporta, pero no basta por sí solo."
+4 · Apuesta del equipo,HIPOTESIS_C.md (pre-registrada); §6 tabla de ablación,"C2 − max(A,B) en validación = -0.0871; la apuesta NO se cumple.",Una sola semilla por variante; no se midió variabilidad entre semillas.
+5 · Decisión económica,"§11 fig6_costo.png, tabla de economía","Umbral por costo (23:1) sobre A+B = 0.761; ahorro de Q1,792,200 en 36 días de prueba.",Costos fijos y uniformes; extrapolación lineal a 1.4 M de tarjetas.
+6 · Recomendación y límites,§12 análisis de error; §14 recomendación,"Complementar, no reemplazar. Mecanismo más difícil: toma_gradual (predicho de antemano en §2).",Confusor de sondeo mal calibrado (§12.3): sesga la §9 a favor de A.

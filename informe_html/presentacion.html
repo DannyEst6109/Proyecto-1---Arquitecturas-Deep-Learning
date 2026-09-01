@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Monitoreo transaccional</title><style>
+@page { size: A4 landscape; margin: 0; }
+* { box-sizing: border-box; }
+body { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; margin: 0;
+       color: #14243b; }
+.s { width: 297mm; height: 209mm; padding: 15mm 18mm; page-break-after: always;
+     position: relative; display: flex; flex-direction: column; }
+.s:last-child { page-break-after: auto; }
+.n { position: absolute; bottom: 8mm; right: 15mm; font-size: 9pt; color: #99a; }
+.marca { position: absolute; bottom: 8mm; left: 18mm; font-size: 8.5pt;
+         color: #99a; }
+h1 { font-size: 30pt; margin: 0 0 6px; letter-spacing: -1px; }
+h2 { font-size: 21pt; margin: 0 0 14px; color: #1f3a5f;
+     border-bottom: 3px solid #1f3a5f; padding-bottom: 7px; }
+p { font-size: 12.5pt; line-height: 1.5; margin: 0 0 9px; }
+li { font-size: 12.5pt; line-height: 1.55; margin-bottom: 7px; }
+.port { justify-content: center; align-items: center; text-align: center;
+        background: #1f3a5f; color: #fff; }
+.port h1 { color: #fff; font-size: 34pt; }
+.port .a { font-size: 14pt; margin-top: 22px; opacity: .92; }
+.port .b { font-size: 11pt; margin-top: 6px; opacity: .72; }
+.grande { font-size: 60pt; font-weight: 700; color: #1f3a5f; line-height: 1;
+          text-align: center; margin: 6px 0; }
+.gsub { text-align: center; font-size: 13pt; color: #556; }
+.cols { display: flex; gap: 16px; flex: 1; }
+.col { flex: 1; }
+table { width: 100%; border-collapse: collapse; font-size: 11pt; margin-top: 6px; }
+th { background: #1f3a5f; color: #fff; padding: 6px 9px; text-align: left; }
+td { padding: 5px 9px; border-bottom: 1px solid #dde; }
+tbody tr:nth-child(even) { background: #f4f6f9; }
+.hi { background: #fff3cd !important; font-weight: 700; }
+.caja { background: #f4f6f9; border-left: 5px solid #1f3a5f; padding: 12px 16px;
+        margin: 10px 0; font-size: 12.5pt; }
+.warn { background: #fffaf0; border-left: 5px solid #c47f00; padding: 12px 16px;
+        margin: 10px 0; font-size: 12pt; }
+img { max-width: 100%; max-height: 118mm; display: block; margin: 0 auto; }
+.tarjetas { display: flex; gap: 14px; margin-top: 14px; }
+.t { flex: 1; border-top: 5px solid #1f3a5f; background: #f7f9fb; padding: 12px; }
+.t .k { font-size: 27pt; font-weight: 700; color: #1f3a5f; }
+.t .e { font-size: 10pt; color: #667; margin-top: 4px; }
+</style></head><body>
+
+<div class="s port">
+  <h1>¿El orden de las transacciones<br>revela fraude?</h1>
+  <div class="a">Daniel Estrada (20853) · Hansel López (19026)</div>
+  <div class="b">Proyecto 1 · Deep Learning 2026 · Universidad del Valle de Guatemala</div>
+</div>
+
+<div class="s">
+  <h2>La pregunta del comité</h2>
+  <div class="caja">«Cuando revisamos los casos que se nos escaparon, el patrón
+  siempre está ahí. No en los montos: <b>en el orden en que ocurrieron</b>.»</div>
+  <p>El motor actual resume cada ventana en variables agregadas: monto promedio
+  de 24 h, transacciones por hora, monto máximo, diversidad de comercios.</p>
+  <div class="warn"><b>El problema:</b> todas esas variables son <b>idénticas si se
+  baraja la secuencia</b>. Por construcción, el motor actual no puede ver orden.</div>
+  <p><b>Nuestra pregunta no es</b> «¿puedo entrenar una LSTM?»<br>
+  <b>Es:</b> ¿el orden aporta información que los agregados no capturan, y cuánto
+  vale en quetzales?</p>
+  <div class="marca">Estrada · López — Deep Learning 2026</div><div class="n">2 / 8</div>
+</div>
+
+<div class="s">
+  <h2>Diseño: datos donde conocemos la verdad</h2>
+  <div class="cols"><div class="col">
+    <p>Generamos los datos para poder hacer una <b>predicción falsable</b>:
+    cuatro mecanismos con dependencia del orden <b>conocida y distinta</b>.</p>
+    <table><thead><tr><th>Mecanismo</th><th>Orden</th><th>Predicción</th></tr></thead>
+    <tbody>
+    <tr><td>escalada de prueba</td><td>fuerte</td><td>B gana</td></tr>
+    <tr><td>ráfaga geográfica</td><td>parcial</td><td>empate</td></tr>
+    <tr class="hi"><td>vaciado súbito</td><td><b>ninguno</b></td><td><b>B NO gana</b></td></tr>
+    <tr><td>toma gradual</td><td>difuso</td><td>ambos fallan</td></tr>
+    </tbody></table>
+  </div><div class="col">
+    <p><b>Confusores legítimos</b> para que no sea trivial: rachas de microcompras,
+    compras grandes reales, viajes.</p>
+    <p><b>Partición temporal estricta</b> 70/15/15 por fecha. El conjunto de prueba
+    se abrió <b>una sola vez</b>.</p>
+    <div class="caja"><b>vaciado súbito</b> es el control negativo. Si B ganara
+    también ahí, la ventaja no vendría del orden.</div>
+  </div></div>
+  <div class="marca">Estrada · López — Deep Learning 2026</div><div class="n">3 / 8</div>
+</div>
+
+<div class="s">
+  <h2>Prueba 1 — Permutación controlada</h2>
+  <p>Barajamos el orden de <b>la historia</b> dentro de cada ventana. Mismos
+  eventos, mismos valores, mismas variables agregadas, y la transacción
+  calificada se queda en su sitio. Solo se destruye la secuencia.</p>
+  <div class="grande">−43&nbsp;%</div>
+  <div class="gsub">del AUC-PR del modelo secuencial se pierde al barajar<br>
+  (0.860 → 0.487, cinco permutaciones distintas)</div>
+  <div class="warn" style="font-size:11pt">Si barajáramos también la posición de
+  la transacción calificada, el modelo perdería además el acceso al evento que
+  debe puntuar y la caída parecería mayor de lo que es. <b>Ese control importa:
+  sin él estaríamos midiendo dos cosas y atribuyéndolas al orden.</b></div>
+  <div class="marca">Estrada · López — Deep Learning 2026</div><div class="n">4 / 8</div>
+</div>
+
+<div class="s">
+  <h2>Prueba 2 — Por mecanismo: el resultado incómodo</h2>
+  <table><thead><tr><th>Mecanismo</th><th>A (agregados)</th><th>B (secuencial)</th><th>B − A</th></tr></thead>
+  <tbody><tr class=""><td>escalada_prueba</td><td>0.970</td><td>0.910</td><td>-0.060</td></tr><tr class=""><td>rafaga_geografica</td><td>0.921</td><td>0.909</td><td>-0.012</td></tr><tr class="hi"><td>vaciado_subito</td><td>0.889</td><td>0.206</td><td>-0.683</td></tr><tr class=""><td>toma_gradual</td><td>0.837</td><td>0.645</td><td>-0.192</td></tr></tbody></table>
+  <div class="cols" style="margin-top:10px">
+    <div class="col"><div class="caja"><b>Se confirmó:</b> B se desploma en el control
+    sin orden (0.206 vs 0.889). Donde no hay orden, no hay nada que leer.</div></div>
+    <div class="col"><div class="warn"><b>Se refutó:</b> B <b>no supera</b> a A en ningún
+    mecanismo. Nuestra predicción falló y así lo reportamos.</div></div>
+  </div>
+  <div class="marca">Estrada · López — Deep Learning 2026</div><div class="n">5 / 8</div>
+</div>
+
+<div class="s">
+  <h2>Entonces, ¿el orden aporta o no?</h2>
+  <p>Que B <b>pierda</b> no significa que su señal sea <b>redundante</b>. Combinamos
+  ambos puntajes (mezcla ajustada solo en validación):</p>
+  <div class="tarjetas">
+    <div class="t"><div class="k">0.9509</div><div class="e">Motor actual solo</div></div>
+    <div class="t"><div class="k">0.9522</div><div class="e">Motor + señal de orden</div></div>
+    <div class="t"><div class="k">+0.0013</div>
+      <div class="e">IC 95 % [+0.0001, +0.0027] — no cruza cero</div></div>
+  </div>
+  <div class="warn" style="margin-top:14px"><b>Detectable ≠ importante.</b> El
+  intervalo excluye el cero, así que la señal de orden no es redundante. Pero la
+  mejora es de <b>milésimas</b>. Con 40,000 transacciones de prueba se detectan
+  diferencias minúsculas; presentar esto como «las secuencias mejoran la
+  detección» sería exagerar lo que medimos.</div>
+  <p style="margin-top:10px">El criterio de relevancia lo puso el comité:
+  quetzales. Siguiente diapositiva.</p>
+  <div class="marca">Estrada · López — Deep Learning 2026</div><div class="n">6 / 8</div>
+</div>
+
+<div class="s">
+  <h2>La decisión en quetzales — y el hallazgo real</h2>
+  <p>Costos del comité: <b>Q4,200</b> por fraude que pasa, <b>Q180</b> por bloqueo
+  indebido. Asimetría <b>23 : 1</b>, así que el umbral minimiza costo esperado, no F1.</p>
+  <table><thead><tr><th>Escenario</th><th>Fraudes que pasan</th>
+    <th>Bloqueos indebidos</th><th>Ahorro en prueba</th></tr></thead><tbody>
+  <tr><td>Solo motor actual</td><td>17</td><td>335</td>
+      <td>Q1,787,700</td></tr>
+  <tr class="hi"><td>Motor + señal de orden</td><td>20</td>
+      <td>240</td><td>Q1,792,200</td></tr>
+  </tbody></table>
+  <div class="cols" style="margin-top:12px">
+    <div class="col"><div class="warn"><b>En dinero: nada.</b>
+    Q4,500 de diferencia
+    (0.00 %). Indistinguible de no hacer nada.</div></div>
+    <div class="col"><div class="caja"><b>En clientes: sí.</b>
+    0 bloqueos indebidos menos
+    (0 %) a igual exhaustividad.</div></div>
+  </div>
+  <p style="margin-top:10px"><b>El caso a favor del orden es de experiencia del
+  cliente, no de detección de fraude.</b> Un falso positivo cuesta 23 veces menos,
+  así que evitar 0 de ellos casi no mueve el balance —
+  pero son 0 personas a las que no se les rechaza una compra.</p>
+  <div class="marca">Estrada · López — Deep Learning 2026</div><div class="n">7 / 8</div>
+</div>
+
+<div class="s">
+  <h2>Recomendación y límites</h2>
+  <div class="caja"><b>Conservar el motor actual.</b> Lo que justificaría el piloto no es detectar
+  más fraude —eso no lo logra— sino molestar a menos clientes detectando el mismo.</div>
+  <div class="cols"><div class="col">
+    <p><b>Por qué B no ganó solo</b><br>Pocos fraudes etiquetados en entrenamiento.
+    Los agregados son conocimiento del dominio ya destilado; la red debe
+    redescubrirlo con muy pocos positivos. <b>Parece un límite de datos, no de
+    arquitectura</b> — y eso es comprobable.</p>
+    <p><b>Nuestra apuesta C falló</b>
+    (-0.087 frente al +0.02 exigido).
+    Pre-registrada en git antes de ver el test; la reportamos como quedó.</p>
+  </div><div class="col">
+    <p><b>Límites que declaramos</b></p>
+    <ul>
+      <li>Datos sintéticos: no dicen nada del fraude real.</li>
+      <li><b>Defecto de nuestro propio generador:</b> los sondeos fraudulentos y
+      las rachas legítimas se separan por monto, no solo por orden — eso sesga
+      la prueba 2 a favor del motor de agregados.</li>
+      <li>La atención de C explica el caso en apenas
+      14 % de las veces, frente al 60 %
+      declarado. Hoy no sirve como explicación.</li>
+      <li>Una sola semilla por variante.</li>
+    </ul>
+    <div class="warn"><b>Siguiente paso:</b> correr la permutación y la prueba de
+    complementariedad sobre los datos reales del banco. Es una tarde de trabajo.</div>
+  </div></div>
+  <div class="marca">Estrada · López — Deep Learning 2026</div><div class="n">8 / 8</div>
+</div>
+
+</body></html>

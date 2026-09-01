@@ -261,9 +261,16 @@ otro no tiene— y la permutación sola solo prueba que *B* usa el orden, no que
 ese orden añada algo sobre los agregados.
 
 **Evidencia que la inclinó:** combinamos los logits de A y B con una regresión
-logística ajustada **solo en validación**. Si el coeficiente de B fuera nulo o
-la mezcla no superara a A, la respuesta al comité sería «no». La mezcla sí
-mejora, y como la señal de B es de orden en un 91 %, lo que aporta es orden.
+logística ajustada **solo en validación**. Si el coeficiente de B fuera nulo o la
+mezcla no superara a A, la respuesta al comité sería «no». La mezcla sí mejora y
+el intervalo no cruza cero, así que la señal de orden no es redundante.
+
+**Y una segunda decisión que salió de ahí:** al ver que la mejora era
+estadísticamente detectable pero minúscula, añadimos un criterio de
+**materialidad** separado del de significancia. No lo inventamos: es la moneda
+que el propio comité fijó (Q4,200 / Q180). Esa distinción es la que evita que el
+trabajo concluya «las secuencias mejoran la detección» cuando lo que los datos
+dicen es «las secuencias reducen los falsos positivos y casi nada más».
 
 **Honestidad:** este análisis es **posterior** al pre-registro de
 `HIPOTESIS_C.md` y está etiquetado como tal en el cuaderno (§11.5). No lo
@@ -291,16 +298,24 @@ complementarios, así que el candidato es la **combinación de ambos**:
 Sin `preparacion.npz` y `columnas.json` los pesos no sirven: los puntajes no
 serían reproducibles.
 
-**Por qué la combinación y no un modelo solo.** El motor de agregados (A) es el
-mejor individualmente, pero la señal secuencial no es redundante: al sumarla, el
-AUC-PR mejora de forma medible (ver `artefactos/resultados.json`, clave
-`complementariedad`). Y como la prueba de permutación demuestra que esa señal
-depende del orden en ~91 %, lo que aporta es justamente información de orden —
-que es lo que el comité preguntó.
+**Por qué la combinación y no un modelo solo — con una advertencia importante.**
+El motor de agregados (A) es claramente el mejor individualmente. La señal
+secuencial no es redundante (el intervalo de confianza de la diferencia no cruza
+cero), pero **su aporte a la detección es de milésimas de AUC-PR y en quetzales
+es casi nulo**. El único beneficio con magnitud defendible es que la combinación
+reduce sustancialmente los bloqueos a clientes legítimos manteniendo la misma
+exhaustividad.
 
-Se conserva también C, aunque su apuesta no alcanzara el umbral declarado,
-porque su capa de atención entrega una explicación por transacción que ni A ni B
-producen, y eso tiene valor para el analista aunque no mejore la métrica.
+Es decir: se conserva la combinación no porque detecte más fraude —no lo hace—
+sino porque molesta a menos clientes detectando el mismo. Las cifras exactas
+están en `artefactos/resultados.json`, claves `complementariedad` y
+`materialidad`.
+
+Se conserva también C, aunque su apuesta no alcanzara el umbral declarado. Su
+capa de atención pretendía explicar cada alerta señalando la transacción de la
+historia que la disparó, pero **ese criterio también falló** (ver
+`atencion_en_historia` en los resultados): la atención rara vez señala un evento
+anterior del episodio. Se guarda como punto de partida, no como algo utilizable.
 
 ### Quién usaría el puntaje y qué decidiría
 
