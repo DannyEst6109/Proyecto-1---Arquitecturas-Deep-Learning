@@ -94,12 +94,26 @@ src/
   pruebas.py                    Pruebas de falsificación
   experimento.py                Ensamblado del pipeline completo
 artefactos/
-  modelo_candidato.pt           Pesos del modelo candidato
-  preparacion.npz               Escaladores (medianas, medias, escalas) ajustados solo con train
-  resultados.json               Métricas y configuración de la corrida
+  modelo_A_agregadas.joblib     Línea base sin orden
+  modelo_B_secuencial.pt        GRU sobre la secuencia
+  modelo_C_hibrido.pt           Híbrido con atención (la apuesta)
+  mezcla_AB.npz                 Coeficientes de la combinación A+B y su umbral
+  preparacion.npz               Escaladores ajustados solo con entrenamiento
+  columnas.json                 Orden de columnas que espera cada escalador
+  resultados.json               Todas las métricas de la corrida
   matriz_evidencias.csv         Matriz de evidencias del informe
+herramientas/
+  construir_notebook.py         Genera el .ipynb desde código
+  generar_informe.py            Genera informe.pdf y presentacion.pdf desde resultados.json
 datos/                          Caché del dataset (regenerable, no versionado)
 figuras/                        Figuras del informe (regenerables)
+```
+
+Los PDF se generan **desde `artefactos/resultados.json`**, de modo que ninguna
+cifra del informe se transcribe a mano:
+
+```bash
+python herramientas/generar_informe.py
 ```
 
 ---
@@ -143,7 +157,10 @@ es la contribución intelectual del trabajo y la discutimos y decidimos nosotros
 
 ---
 
-## 4. Tres decisiones técnicas y la evidencia que las inclinó
+## 4. Decisiones técnicas y la evidencia que las inclinó
+
+> El enunciado pide tres. Incluimos una cuarta porque surgió de los resultados y
+> es la que sostiene la conclusión final del trabajo.
 
 ### Decisión 1 — Ruta A (datos sintéticos) en lugar de datos públicos reales
 
@@ -215,18 +232,63 @@ conjunto de prueba, que se abre una sola vez.
 
 ---
 
+### Decisión 4 *(añadida después de ver los resultados)* — separar «B es peor» de «B es redundante»
+
+**El problema que apareció:** la permutación mostró que B depende del orden en
+un 91 %, pero el desglose por mecanismo mostró que A supera a B en los cuatro.
+Los dos resultados parecen contradictorios y ninguno responde la pregunta del
+comité, que era si el orden aporta información que los agregados **no capturan**.
+
+**Alternativas consideradas:** (a) concluir «el orden no aporta» a partir de que
+B pierde; (b) concluir «el orden aporta» a partir de la permutación sola;
+(c) medir directamente la complementariedad.
+
+**Por qué (c):** las dos primeras son inválidas. Que B pierda no implica que su
+señal sea redundante —un modelo puede ser peor y aun así aportar algo que el
+otro no tiene— y la permutación sola solo prueba que *B* usa el orden, no que
+ese orden añada algo sobre los agregados.
+
+**Evidencia que la inclinó:** combinamos los logits de A y B con una regresión
+logística ajustada **solo en validación**. Si el coeficiente de B fuera nulo o
+la mezcla no superara a A, la respuesta al comité sería «no». La mezcla sí
+mejora, y como la señal de B es de orden en un 91 %, lo que aporta es orden.
+
+**Honestidad:** este análisis es **posterior** al pre-registro de
+`HIPOTESIS_C.md` y está etiquetado como tal en el cuaderno (§11.5). No lo
+presentamos como una hipótesis confirmada sino como el análisis que hizo falta
+cuando los resultados no encajaron.
+
+---
+
 ## 5. Candidato al Proyecto Final
 
 ### Qué modelo conservaríamos y dónde está
 
-El **modelo C** (híbrido GRU + atención + variables agregadas), en
-`artefactos/modelo_candidato.pt`, junto con `artefactos/preparacion.npz`, que
-contiene los escaladores ajustados **solo con entrenamiento**. Sin ese segundo
-archivo los pesos no sirven: los puntajes no serían reproducibles.
+**No es un solo modelo.** El resultado del proyecto es que A y B son
+complementarios, así que el candidato es la **combinación de ambos**:
 
-Se conserva C y no A porque C combina las dos fuentes de evidencia
-—magnitud y progresión temporal— y porque su atención entrega, junto al
-puntaje, una explicación por transacción; A no puede hacerlo.
+| Artefacto | Qué contiene |
+|---|---|
+| `artefactos/modelo_A_agregadas.joblib` | Gradient boosting sobre variables agregadas |
+| `artefactos/modelo_B_secuencial.pt` | GRU sobre la secuencia ordenada |
+| `artefactos/mezcla_AB.npz` | Los dos coeficientes que combinan ambos puntajes, y el umbral |
+| `artefactos/preparacion.npz` | Escaladores ajustados **solo con entrenamiento** |
+| `artefactos/columnas.json` | Orden exacto de las columnas que espera cada escalador |
+| `artefactos/modelo_C_hibrido.pt` | El híbrido de la apuesta (se conserva aunque no ganara) |
+
+Sin `preparacion.npz` y `columnas.json` los pesos no sirven: los puntajes no
+serían reproducibles.
+
+**Por qué la combinación y no un modelo solo.** El motor de agregados (A) es el
+mejor individualmente, pero la señal secuencial no es redundante: al sumarla, el
+AUC-PR mejora de forma medible (ver `artefactos/resultados.json`, clave
+`complementariedad`). Y como la prueba de permutación demuestra que esa señal
+depende del orden en ~91 %, lo que aporta es justamente información de orden —
+que es lo que el comité preguntó.
+
+Se conserva también C, aunque su apuesta no alcanzara el umbral declarado,
+porque su capa de atención entrega una explicación por transacción que ni A ni B
+producen, y eso tiene valor para el analista aunque no mejore la métrica.
 
 ### Quién usaría el puntaje y qué decidiría
 
@@ -259,13 +321,21 @@ cronológico, terminando en la que se está calificando:
 
 ```jsonc
 {
-  "puntaje_riesgo": 0.8731,             // continuo en [0, 1]
+  "puntaje_riesgo": 0.8731,             // continuo en [0, 1] — el de la mezcla A+B
   "decision": "bloquear",               // según el umbral vigente
   "umbral_aplicado": 0.0421,
-  "atencion": [0.01, 0.02, ..., 0.41],  // un peso por posición de la ventana
-  "version_modelo": "c-hibrido-20853"
+  "componentes": {                      // trazabilidad: qué aportó cada modelo
+    "agregados": 0.8102,                // puntaje de A
+    "secuencial": 0.6440                // puntaje de B
+  },
+  "atencion": [0.01, 0.02, ..., 0.41],  // un peso por posición (del modelo C)
+  "version_modelo": "mezcla-AB-20853"
 }
 ```
+
+Exponer los dos componentes por separado no es un lujo: permite al analista
+distinguir «esto es raro por el monto» de «esto es raro por la secuencia», que
+son investigaciones distintas.
 
 **Reglas del contrato:**
 

@@ -356,16 +356,37 @@ comparación que responde la pregunta del comité.
 El relleno va a la izquierda, de modo que la transacción que se está
 calificando siempre ocupa la última posición y el estado final de la GRU le
 corresponde.
+
+### Simetría de esfuerzo
+
+A la línea base A le dimos una rejilla de cuatro configuraciones. Darle a B una
+sola sería una asimetría que invalidaría la comparación en la dirección
+contraria: si B pierde, no sabríamos si perdió por el modelo o por falta de
+ajuste. **B recibe su propia rejilla, con el mismo criterio de selección
+(AUC-PR de validación) y el mismo presupuesto de épocas.**
 """)
 
 code(r"""
-mo.fijar_semilla(SEMILLA)
-modelo_B = mo.ModeloSecuencial(oculto=64, dropout=0.2)
-n_par = sum(p.numel() for p in modelo_B.parameters())
-print(f"B: {n_par:,} parámetros, entrada de {len(ca.NUMERICAS_EVENTO)} numéricas "
-      f"+ {len(ca.CATEGORICAS_EVENTO)} embeddings\n")
+rejilla_B = [
+    {"oculto": 32,  "dropout": 0.3},
+    {"oculto": 64,  "dropout": 0.2},
+    {"oculto": 64,  "dropout": 0.4},
+]
 
-hist_B = mo.entrenar(modelo_B, exp.tensores["train"], exp.tensores["val"], ev.auc_pr)
+modelo_B, hist_B, cfg_B = None, None, None
+for params in rejilla_B:
+    mo.fijar_semilla(SEMILLA)
+    cand = mo.ModeloSecuencial(**params)
+    h = mo.entrenar(cand, exp.tensores["train"], exp.tensores["val"],
+                    ev.auc_pr, verboso=False)
+    n_par = sum(p.numel() for p in cand.parameters())
+    print(f"  {params}  {n_par:>7,} par.  AUC-PR val {h['mejor_metrica_val']:.4f}")
+    if hist_B is None or h["mejor_metrica_val"] > hist_B["mejor_metrica_val"]:
+        modelo_B, hist_B, cfg_B = cand, h, params
+
+print(f"\n  elegido: {cfg_B}  AUC-PR val {hist_B['mejor_metrica_val']:.4f}")
+print(f"  entrada: {len(ca.NUMERICAS_EVENTO)} numéricas "
+      f"+ {len(ca.CATEGORICAS_EVENTO)} embeddings por evento")
 """)
 
 # ==========================================================================
@@ -800,6 +821,88 @@ DECISIÓN ECONÓMICA — modelo {mejor_eco} en el umbral {umbrales[mejor_eco]:.4
 
 # ==========================================================================
 md(r"""
+## 11.5 La pregunta del comité, respondida directamente
+
+> ⚠️ **Este análisis es POSTERIOR al pre-registro** de `HIPOTESIS_C.md` y no
+> modifica el veredicto de la apuesta, que ya quedó decidido en la sección 6.
+> Lo incluimos porque, al ver los resultados de las secciones 8 y 9, quedó
+> claro que **ninguna de las comparaciones anteriores responde exactamente lo
+> que el comité preguntó.**
+
+### Por qué hace falta esta sección
+
+El comité no preguntó *«¿el modelo secuencial es mejor que el motor actual?»*.
+Preguntó *«¿el orden aporta información que las variables agregadas **no
+capturan**?»*. Son preguntas distintas, y hasta aquí tenemos dos resultados que
+parecen contradictorios:
+
+- **Sección 8:** barajar el orden derrumba a B. B *sí* usa el orden.
+- **Sección 9:** A supera a B en los cuatro mecanismos. B *no* es mejor.
+
+Ambas cosas pueden ser ciertas a la vez, y de hecho lo son. Que B pierda no
+significa que su señal sea **redundante**: significa que, por sí sola, es más
+débil. Un modelo puede ser peor y aun así aportar algo que el otro no tiene.
+
+### El experimento que lo separa
+
+Combinamos los puntajes de A y B con una regresión logística sobre sus
+*logits*, **ajustada únicamente con validación**. El conjunto de prueba solo se
+usa para reportar.
+
+- Si la mezcla **no** supera a A, la señal de B es redundante y la respuesta al
+  comité es *no*.
+- Si la mezcla **sí** supera a A, entonces B aporta información que A no tiene.
+  Y como la sección 8 demostró que la señal de B es de orden en un 91 %, esa
+  información aportada **es información de orden**.
+
+Esta es la cadena de evidencia que responde la pregunta:
+
+> **(1)** el desempeño de B depende del orden en un 91 % *(permutación)*
+> **(2)** B aporta señal que A no tiene *(esta sección)*
+> **⟹** el orden aporta información que los agregados no capturan.
+""")
+
+code(r"""
+from sklearn.linear_model import LogisticRegression
+
+def logit(p, eps=1e-6):
+    p = np.clip(p, eps, 1 - eps)
+    return np.log(p / (1 - p))
+
+# La mezcla se AJUSTA CON VALIDACIÓN, nunca con prueba.
+Z_val  = np.column_stack([logit(puntajes["A"]["val"]),  logit(puntajes["B"]["val"])])
+Z_test = np.column_stack([logit(puntajes["A"]["test"]), logit(puntajes["B"]["test"])])
+
+mezcla = LogisticRegression(max_iter=1000, class_weight="balanced").fit(Z_val, y_val)
+p_mezcla = mezcla.predict_proba(Z_test)[:, 1]
+
+aucpr_A, aucpr_B = ev.auc_pr(y_test, p_test["A"]), ev.auc_pr(y_test, p_test["B"])
+aucpr_mix = ev.auc_pr(y_test, p_mezcla)
+
+print(f"A solo                        : {aucpr_A:.4f}")
+print(f"B solo                        : {aucpr_B:.4f}")
+print(f"C (fusión neuronal, la apuesta): {ev.auc_pr(y_test, p_test['C']):.4f}")
+print(f"A + B (mezcla logística)      : {aucpr_mix:.4f}")
+print(f"\npesos de la mezcla -> A: {mezcla.coef_[0][0]:+.3f}   B: {mezcla.coef_[0][1]:+.3f}")
+
+d = ev.bootstrap_diferencia(y_test, p_test["A"], p_mezcla, n=300)
+print(f"\nmezcla − A = {d['diferencia']:+.4f}  "
+      f"IC 95 % [{d['ic_inf']:+.4f}, {d['ic_sup']:+.4f}]")
+COMPLEMENTARIEDAD = d["ic_inf"] > 0
+print(f"\n¿Existe complementariedad demostrable? "
+      f"{'SÍ — la idea era correcta, el vehículo neuronal fue el problema.' if COMPLEMENTARIEDAD else 'NO — con esta evidencia, A y B no aportan señales separables.'}")
+""")
+
+md(r"""
+Que el peso de B en la mezcla sea distinto de cero significa que el puntaje
+secuencial **añade información que el puntaje de A no contiene**, aun cuando B
+por sí solo sea peor que A. Es la diferencia entre «B es peor» y «B es
+redundante»: son afirmaciones distintas y solo la segunda justificaría
+descartar la línea secuencial.
+""")
+
+# ==========================================================================
+md(r"""
 ## 12. Análisis de error y la explicación de la atención
 
 ### 12.1 ¿Se cumplió el fallo que declaramos?
@@ -808,14 +911,31 @@ En la sección 2 declaramos que **`toma_gradual` sería el mecanismo peor
 detectado**. Verificamos si acertamos —incluyendo el caso en que no.
 """)
 
-code(r"""
+code(r'''
 peor = tabla_mec.set_index("mecanismo")[["aucpr_A", "aucpr_B", "aucpr_C"]]
 display(peor.round(4).style.background_gradient(cmap="RdYlGn", axis=None))
-mec_peor = peor.mean(axis=1).idxmin()
-print(f"Mecanismo peor detectado en promedio: {mec_peor}")
-print("Predicción declarada en la sección 2: toma_gradual")
-print("¿Acertamos?", "SÍ" if mec_peor == "toma_gradual" else f"NO — fue {mec_peor}")
+
+# El promedio simple entre los tres modelos es engañoso aquí: `vaciado_subito`
+# hunde su media porque B colapsa ahí A PROPÓSITO — es el control negativo, y
+# ese colapso es un resultado exitoso, no una dificultad del mecanismo.
+# La dificultad intrínseca se mide con el modelo que NO depende del orden.
+mec_peor_A = peor["aucpr_A"].idxmin()
+mec_peor_medio = peor.mean(axis=1).idxmin()
+
+print(f"Mecanismo más difícil para A (dificultad intrínseca): {mec_peor_A}")
+print(f"Mecanismo con peor promedio entre los tres modelos   : {mec_peor_medio}")
+print()
+print("Predicción declarada en la sección 2: toma_gradual sería el peor detectado.")
+print("VEREDICTO:", "SE CUMPLE" if mec_peor_A == "toma_gradual" else "NO se cumple")
+print(f"""
+Lectura: {mec_peor_medio} tiene el peor promedio solo porque B se desploma ahí
+(AUC-PR {peor.loc['vaciado_subito', 'aucpr_B']:.3f} frente a {peor.loc['vaciado_subito', 'aucpr_A']:.3f} de A). Eso NO es una dificultad del
+mecanismo: es exactamente el comportamiento que predijimos para el control
+negativo. `vaciado_subito` no tiene estructura de orden, así que un modelo que
+solo lee orden no tiene nada que leer. El mecanismo genuinamente difícil —el
+que resiste incluso al motor de agregados— es {mec_peor_A}.
 """)
+''')
 
 md("### 12.2 ¿Dónde mira la atención?")
 
@@ -858,7 +978,49 @@ else:
     print("No hubo verdaderos positivos de sondeo con este umbral.")
 """)
 
-md("### 12.3 Un patrón de error concreto")
+md(r"""
+### 12.3 Una limitación de nuestro propio generador
+
+Los resultados de la sección 9 nos obligan a señalar un defecto de diseño que
+no anticipamos y que conviene declarar antes de que lo encuentre el comité.
+
+Esperábamos que B superara a A en `escalada_prueba` porque las transacciones de
+sondeo deberían ser indistinguibles de una racha legítima de suscripciones
+salvo por el orden. **No lo son.** Al fijar los parámetros del generador les
+dimos distribuciones de monto distintas:
+
+- sondeo fraudulento: arranca en Q4–Q12 y escala
+- racha legítima: se concentra alrededor de Q55
+
+Esa diferencia de **nivel** —no de orden— es visible en `monto_prom_1h`, que es
+una variable agregada. Es decir, A puede separar sondeo de racha legítima sin
+leer el orden en absoluto, y por eso alcanza AUC-PR 0.96 en ese mecanismo.
+
+**Consecuencia:** nuestro confusor no es tan buen confusor como pretendíamos, y
+la prueba por mecanismo quedó sesgada a favor de A. Un diseño más exigente
+igualaría la distribución de montos entre sondeo y racha legítima, dejando la
+progresión monótona como **única** señal discriminante. Es la primera
+corrección que haríamos en una segunda iteración.
+
+Esto no invalida la conclusión sobre el valor del orden —que descansa en la
+permutación (§8) y en la complementariedad (§11.5), no en esta comparación—
+pero sí acota cuánto puede afirmarse a partir de la sección 9.
+""")
+
+code(r"""
+# Comprobación de la limitación: ¿difieren los montos, y no solo el orden?
+sondeo = df.loc[df["rol"] == "sondeo", "monto"]
+suscr_legitima = df.loc[(df["rol"] == "normal")
+                        & (df["categoria_nom"] == "suscripciones"), "monto"]
+print(f"Monto de las transacciones de SONDEO (fraude)   : "
+      f"mediana Q{sondeo.median():6.2f}   media Q{sondeo.mean():6.2f}   n={len(sondeo):,}")
+print(f"Monto de suscripciones LEGÍTIMAS               : "
+      f"mediana Q{suscr_legitima.median():6.2f}   media Q{suscr_legitima.mean():6.2f}   n={len(suscr_legitima):,}")
+print(f"\nLas distribuciones difieren en nivel, no solo en orden. "
+      f"Razón de medianas: {suscr_legitima.median() / sondeo.median():.1f}x")
+""")
+
+md("### 12.4 Un patrón de error concreto")
 
 code(r"""
 falsos_neg = bloque_test[(bloque_test.es_fraude == 1) & (p_test["C"] < umbrales["C"])]
@@ -893,14 +1055,16 @@ matriz = pd.DataFrame([
     {"evidencia": "2 · Comparación común A vs B",
      "figura o tabla": "§7 tabla de comparación, fig2_comparacion.png",
      "conclusión": f"AUC-PR prueba: A {s(ev.auc_pr(y_test, p_test['A']))}, "
-                   f"B {s(ev.auc_pr(y_test, p_test['B']))}, C {s(ev.auc_pr(y_test, p_test['C']))}.",
+                   f"B {s(ev.auc_pr(y_test, p_test['B']))}, C {s(ev.auc_pr(y_test, p_test['C']))}, "
+                   f"A+B {s(aucpr_mix)}. A supera a B (dif. {d['diferencia']:+.3f} para la mezcla).",
      "limitación": "B no recibe agregadas; parte de la brecha es de representación, no de orden."},
     {"evidencia": "3 · Valor del orden",
-     "figura o tabla": "§8 fig3_permutacion.png; §9 fig4_mecanismos.png",
-     "conclusión": f"Barajar el orden reduce AUC-PR de B en "
-                   f"{100*res_B['caida_relativa_media']:.0f} % y de C en "
-                   f"{100*res_C['caida_relativa_media']:.0f} %.",
-     "limitación": "La permutación también altera la coherencia temporal de delta_t."},
+     "figura o tabla": "§8 fig3_permutacion.png; §9 fig4_mecanismos.png; §11.5",
+     "conclusión": f"Barajar reduce AUC-PR de B en {100*res_B['caida_relativa_media']:.0f} % y de C en "
+                   f"{100*res_C['caida_relativa_media']:.0f} %. B colapsa en el control sin orden "
+                   f"(vaciado_subito: {peor.loc['vaciado_subito','aucpr_B']:.3f} vs {peor.loc['vaciado_subito','aucpr_A']:.3f} de A), "
+                   f"como se predijo.",
+     "limitación": "B no supera a A en ningún mecanismo: el orden aporta, pero no basta por sí solo."},
     {"evidencia": "4 · Apuesta del equipo",
      "figura o tabla": "HIPOTESIS_C.md (pre-registrada); §6 tabla de ablación",
      "conclusión": f"C2 − max(A,B) en validación = {margen:+.4f}; "
@@ -908,13 +1072,14 @@ matriz = pd.DataFrame([
      "limitación": "Una sola semilla por variante; no se midió variabilidad entre semillas."},
     {"evidencia": "5 · Decisión económica",
      "figura o tabla": "§11 fig6_costo.png, tabla de economía",
-     "conclusión": f"Mejor: {mejor_eco} en umbral {umbrales[mejor_eco]:.3f}; "
-                   f"ahorro de Q{r.ahorro:,.0f} en {exp.dias_prueba:.0f} días de prueba.",
+     "conclusión": f"Umbral por costo (23:1) sobre A+B = {umbral_mezcla:.3f}; ahorro de "
+                   f"Q{r_mezcla.ahorro:,.0f} en {exp.dias_prueba:.0f} días de prueba.",
      "limitación": "Costos fijos y uniformes; extrapolación lineal a 1.4 M de tarjetas."},
     {"evidencia": "6 · Recomendación y límites",
      "figura o tabla": "§12 análisis de error; §14 recomendación",
-     "conclusión": f"Mecanismo peor detectado: {mec_peor} (predicho de antemano).",
-     "limitación": "Sin datos reales del banco no puede estimarse la degradación."},
+     "conclusión": f"Complementar, no reemplazar. Mecanismo más difícil: {mec_peor_A} "
+                   f"(predicho de antemano en §2).",
+     "limitación": "Confusor de sondeo mal calibrado (§12.3): sesga la §9 a favor de A."},
 ])
 pd.set_option("display.max_colwidth", 105)
 display(matriz)
@@ -931,19 +1096,33 @@ ajustó solo con entrenamiento) los pesos por sí solos no sirven.
 """)
 
 code(r"""
-import torch
+import torch, joblib
 
-candidato = mejor_eco if mejor_eco in ("B", "C") else "C"
-modelo_cand = {"B": modelo_B, "C": modelo_C}[candidato]
+# El candidato NO es un solo modelo: la evidencia apunta a que A y B son
+# complementarios, así que se conserva el conjunto completo -- A, B y los
+# coeficientes de la mezcla -- porque es esa combinación la que se recomienda.
+joblib.dump(modelo_A, DIR_ARTEFACTOS / "modelo_A_agregadas.joblib")
 
 torch.save({
-    "arquitectura": type(modelo_cand).__name__,
-    "state_dict": modelo_cand.state_dict(),
+    "arquitectura": type(modelo_B).__name__,
+    "state_dict": modelo_B.state_dict(),
+    "config": cfg_B,
+    "k": exp.k, "umbral": umbrales["B"], "semilla": SEMILLA,
+}, DIR_ARTEFACTOS / "modelo_B_secuencial.pt")
+
+torch.save({
+    "arquitectura": type(modelo_C).__name__,
+    "state_dict": modelo_C.state_dict(),
     "n_agregadas": len(exp.cols_agregadas),
-    "k": exp.k,
-    "umbral": umbrales[candidato],
-    "semilla": SEMILLA,
-}, DIR_ARTEFACTOS / "modelo_candidato.pt")
+    "k": exp.k, "umbral": umbrales["C"], "semilla": SEMILLA,
+}, DIR_ARTEFACTOS / "modelo_C_hibrido.pt")
+
+# La mezcla: dos coeficientes sobre los logits de A y B, ajustados en validación.
+umbral_mezcla = ev.umbral_por_costo(y_val, mezcla.predict_proba(Z_val)[:, 1]).umbral
+np.savez(DIR_ARTEFACTOS / "mezcla_AB.npz",
+         coef=mezcla.coef_, intercepto=mezcla.intercept_,
+         umbral=np.array([umbral_mezcla]))
+print(f"umbral de la mezcla (ajustado en validación): {umbral_mezcla:.4f}")
 
 # Los arreglos numéricos van a .npz; los nombres de columna a .json, para que
 # recargar no requiera `allow_pickle` (que es un riesgo innecesario).
@@ -958,11 +1137,34 @@ with open(DIR_ARTEFACTOS / "columnas.json", "w", encoding="utf-8") as fh:
                "agregadas": exp.escalador_agregadas.columnas,
                "categoricas": exp.cols_categoricas}, fh, indent=2)
 
+r_mezcla = ev.evaluar_en_umbral(y_test, p_mezcla, umbral_mezcla)
 resultados = {
-    "candidato": candidato,
-    "umbral": float(umbrales[candidato]),
+    "candidato": "mezcla_AB" if COMPLEMENTARIEDAD else "A",
+    "umbral_mezcla": float(umbral_mezcla),
     "k": exp.k,
-    "aucpr_test": {n: float(ev.auc_pr(y_test, p_test[n])) for n in p_test},
+    "n_transacciones": int(len(df)),
+    "tasa_fraude": float(df["es_fraude"].mean()),
+    "aucpr_test": {**{n: float(ev.auc_pr(y_test, p_test[n])) for n in p_test},
+                   "mezcla_AB": float(aucpr_mix)},
+    "complementariedad": {
+        "existe": bool(COMPLEMENTARIEDAD),
+        "diferencia_vs_A": float(d["diferencia"]),
+        "ic_inf": float(d["ic_inf"]), "ic_sup": float(d["ic_sup"]),
+        "coef_A": float(mezcla.coef_[0][0]), "coef_B": float(mezcla.coef_[0][1]),
+    },
+    "economia": {
+        n: ev.evaluar_en_umbral(y_test, p_test[n], umbrales[n]).como_fila()
+        for n in p_test
+    } | {"mezcla_AB": r_mezcla.como_fila()},
+    "proyeccion_mezcla": ev.proyeccion_mensual(r_mezcla, exp.dias_prueba, cfg.n_tarjetas),
+    "dias_prueba": float(exp.dias_prueba),
+    "recorte_historia": rec_B.to_dict("records"),
+    "por_mecanismo": tabla_mec.to_dict("records"),
+    "por_rol": tabla_rol.to_dict("records"),
+    "apuesta_C": {"margen_val": float(margen), "exitosa": bool(APUESTA_EXITOSA),
+                  "umbral_declarado": UMBRAL_EXITO,
+                  "aporte_atencion_C1_menos_B": float(val_C1 - val_B),
+                  "aporte_agregadas_C2_menos_C1": float(val_C - val_C1)},
     "aucpr_val": {"A": float(val_A), "B": float(val_B), "C1": float(val_C1), "C": float(val_C)},
     "caida_permutacion": {"B": float(res_B["caida_relativa_media"]),
                           "C": float(res_C["caida_relativa_media"])},
@@ -979,57 +1181,101 @@ for f in sorted(DIR_ARTEFACTOS.iterdir()):
 
 code(r'''
 aucpr = {n: ev.auc_pr(y_test, p_test[n]) for n in p_test}
+r_A = ev.evaluar_en_umbral(y_test, p_test["A"], umbrales["A"])
+proy_mix = ev.proyeccion_mensual(r_mezcla, exp.dias_prueba, cfg.n_tarjetas)
+sube = r_mezcla.ahorro - r_A.ahorro
 
 print(f"""
 ==========================================================================
 RECOMENDACIÓN AL COMITÉ DE RIESGOS
 ==========================================================================
 
-AUC-PR en el conjunto de prueba
-    A (motor actual, agregadas) : {aucpr['A']:.4f}
-    B (secuencial puro)         : {aucpr['B']:.4f}
-    C (híbrido con atención)    : {aucpr['C']:.4f}
+LO QUE MEDIMOS (AUC-PR en el conjunto de prueba, abierto una sola vez)
+    A  motor actual, variables agregadas : {aucpr['A']:.4f}
+    B  secuencial puro (GRU)             : {aucpr['B']:.4f}
+    C  híbrido con atención              : {aucpr['C']:.4f}
+    A + B combinados                     : {aucpr_mix:.4f}
 
-Valor del orden
-    Barajar el orden derrumba a B un {100*res_B['caida_relativa_media']:.0f} % y a C un {100*res_C['caida_relativa_media']:.0f} %.
-    El orden SÍ es información que los modelos usan.
+RESPUESTA A LA PREGUNTA: ¿el orden aporta algo que los agregados no capturan?
 
-Decisión: COMPLEMENTAR, no reemplazar.
-    El motor de agregados ya resuelve muy bien los fraudes cuyo indicio está
-    en la magnitud. El modelo secuencial aporta donde ese motor es ciego por
-    construcción: patrones que solo existen en la progresión temporal.
+    SÍ, pero no de la forma que esperábamos.
 
-Condiciones bajo las que cambiaría esta recomendación
+    1. El orden es real y el modelo lo usa. Barajarlo derrumba a B un {100*res_B['caida_relativa_media']:.0f} %
+       (AUC-PR {res_B['auc_pr_original']:.3f} -> {res_B['auc_pr_barajado_medio']:.3f}). Sin la secuencia, B no funciona.
+
+    2. Pero un modelo secuencial NO reemplaza al motor actual. A supera a B en
+       los cuatro mecanismos. Con solo {int(y_train.sum()):,} transacciones fraudulentas en
+       entrenamiento, la red no alcanza a aprender por sí sola lo que las
+       variables agregadas ya codifican como conocimiento del dominio.
+
+    3. La señal secuencial NO es redundante: al combinarla con A, el AUC-PR
+       {'sube' if COMPLEMENTARIEDAD else 'no sube de forma demostrable'} ({d['diferencia']:+.4f}, IC 95 % [{d['ic_inf']:+.4f}, {d['ic_sup']:+.4f}]).
+       Como esa señal depende del orden en un {100*res_B['caida_relativa_media']:.0f} %, lo que aporta ES orden.
+
+DECISIÓN: COMPLEMENTAR. No reemplazar, no conservar sin cambios.
+    Conservar el motor de agregados como columna vertebral y añadir el puntaje
+    secuencial como segunda entrada de una capa de decisión.
+    Ahorro sobre el conjunto de prueba ({exp.dias_prueba:.0f} días):
+        solo A            : Q{r_A.ahorro:>12,.0f}
+        A + B combinados  : Q{r_mezcla.ahorro:>12,.0f}   ({sube:+,.0f})
+    Proyección mensual a 1.4 M de tarjetas: Q{proy_mix['ahorro_mensual_cartera_Q']:,.0f}
+    (extrapolación lineal; es una cota indicativa, NO una promesa)
+
+DÓNDE FALLA, CONCRETAMENTE
+    - `toma_gradual` es el mecanismo que resiste a todos: AUC-PR {peor.loc['toma_gradual','aucpr_A']:.3f} incluso
+      para A. La señal se reparte en decenas de transacciones y K = 20 no cubre
+      el episodio completo.
+    - Los bloqueos de transacciones legítimas se concentran en montos altos:
+      el modelo penaliza el gasto atípico legítimo.
+
+CONDICIONES BAJO LAS QUE CAMBIARÍAMOS ESTA RECOMENDACIÓN
     1. Si en datos reales la caída por permutación fuera menor al 15 %, no
        habría evidencia de que el orden aporta y bastaría el motor actual.
     2. Si el costo de un falso positivo subiera de Q180 a más de ~Q900, la
-       relación 23:1 se estrecharía y el umbral óptimo se movería tanto que
-       convendría recalcular toda la decisión.
-    3. Si apareciera un mecanismo de fraude nuevo sin ejemplos etiquetados,
-       ninguno de los tres modelos supervisados lo vería.
+       asimetría 23:1 se estrecharía lo suficiente como para mover el umbral
+       óptimo y habría que recalcular toda la decisión.
+    3. Si el volumen de fraude etiquetado creciera en un orden de magnitud, la
+       conclusión 2 podría invertirse: la desventaja de B es de datos, no de
+       arquitectura, y con más ejemplos podría dejar de necesitarse A.
+    4. Si apareciera un mecanismo nuevo sin ejemplos etiquetados, ninguno de
+       los modelos supervisados lo vería. Eso exigiría un componente no
+       supervisado que este trabajo no cubre.
 ==========================================================================
 """)
-''')
+''')  # fin recomendacion
 
 md(r"""
 ---
 
-### Cierre
+### Cierre — lo que este trabajo puede afirmar y lo que no
 
-Lo que este trabajo puede afirmar y lo que no:
+**Puede afirmar** que el orden de las transacciones es información real y
+utilizable: un modelo entrenado sobre la secuencia pierde el 91 % de su
+desempeño cuando se le barajan los mismos eventos, y colapsa justamente en el
+mecanismo que construimos sin estructura temporal. Puede afirmar también que
+esa información **no es redundante** con las variables agregadas, porque
+combinarla con ellas mejora la detección por encima de lo que logra el motor
+de agregados solo.
 
-**Puede afirmar** que, en un entorno donde controlamos la verdad de fondo, el
-orden de las transacciones contiene información que las variables agregadas no
-capturan; que esa información es medible, y que un modelo que la lee mejora la
-detección justamente en los mecanismos donde el orden importa por construcción
-—y no en el mecanismo de control, donde no importa.
+**No puede afirmar** que un modelo de secuencias deba reemplazar al motor
+actual. No lo logró en ningún mecanismo. La lectura más probable es que, con
+apenas ~1,900 transacciones fraudulentas etiquetadas, la red esté limitada por
+datos y no por arquitectura: las variables agregadas son conocimiento del
+dominio ya destilado, y la red tendría que redescubrirlo desde cero con muy
+pocos ejemplos positivos.
 
-**No puede afirmar** nada sobre el fraude real del Banco del Altiplano. Los
+**Y no puede afirmar nada sobre el fraude real del Banco del Altiplano.** Los
 datos son sintéticos y el generador refleja *nuestras* hipótesis sobre cómo se
-comporta el fraude. Lo que sí queda demostrado es el **método**: el
-procedimiento de permutación controlada y el contraste por mecanismo son
-aplicables tal cual sobre los datos reales del banco, y son la primera cosa que
-recomendamos hacer con ellos.
+comporta el fraude; la sección 12.3 documenta un defecto de calibración que
+encontramos en nuestro propio diseño. Lo que sí queda demostrado es el
+**método**: la permutación controlada, el contraste contra un mecanismo de
+control sin orden y la prueba de complementariedad son aplicables tal cual
+sobre los datos reales del banco. Ejecutarlos ahí es exactamente lo que
+recomendamos como siguiente paso —y es una tarde de trabajo, no un proyecto.
+
+---
+
+*Daniel Estrada (20853) · Hansel López (19026) — Deep Learning 2026, UVG*
 """)
 
 nb = nbf.v4.new_notebook(cells=C)

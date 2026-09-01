@@ -71,11 +71,26 @@ def preparar(cfg: ConfigGenerador | None = None, k: int = LONGITUD_SECUENCIA,
     DIR_DATOS.mkdir(exist_ok=True)
     cache = DIR_DATOS / f"transacciones_s{cfg.semilla}_n{cfg.n_tarjetas}_d{cfg.dias}.parquet"
 
+    # Columnas que el resto del pipeline da por hechas. Un cache escrito por una
+    # version anterior del generador puede no tenerlas; en ese caso se regenera
+    # en vez de fallar mas adelante con un KeyError dificil de rastrear.
+    requeridas = {"id_transaccion", "id_tarjeta", "timestamp", "monto", "categoria",
+                  "canal", "departamento", "es_fraude", "mecanismo", "id_episodio",
+                  "rol", "mecanismo_nom", "categoria_nom"}
+
+    df = None
     if usar_cache and cache.exists():
-        if verboso:
-            print(f"Leyendo cache {cache.name}")
-        df = pd.read_parquet(cache)
-    else:
+        candidato = pd.read_parquet(cache)
+        faltantes = requeridas - set(candidato.columns)
+        if faltantes:
+            if verboso:
+                print(f"Cache obsoleto (faltan {sorted(faltantes)}); se regenera.")
+        else:
+            if verboso:
+                print(f"Leyendo cache {cache.name}")
+            df = candidato
+
+    if df is None:
         if verboso:
             print("Generando transacciones...")
         df = generar(cfg)
