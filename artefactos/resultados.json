@@ -349,6 +349,28 @@
   ],
   "atencion_en_historia": 0.13970588235294118,
   "episodios_cruzan_corte": 15,
+  "decision": "PILOTO ACOTADO. Conservar el motor actual como decisi\u00f3n principal",
+  "materialidad": {
+    "en_dinero": false,
+    "en_molestia": true,
+    "delta_ahorro_Q": 4500.0,
+    "delta_ahorro_rel": 0.002517200872629636,
+    "delta_fp": -95,
+    "delta_fp_rel": -0.2835820895522388,
+    "delta_fn": 3
+  },
+  "solo_A": {
+    "umbral": 0.0016807699091421773,
+    "precision": 0.567741935483871,
+    "exhaustividad": 0.962800875273523,
+    "f1": 0.7142857142857142,
+    "TP": 440,
+    "FP": 335,
+    "FN": 17,
+    "TN": 38581,
+    "costo_Q": 131700.0,
+    "ahorro_Q": 1787700.0
+  },
   "cortes": {
     "fin_train": "2025-06-20 02:19:19.933799394",
     "fin_val": "2025-07-26 13:04:14.112793398"

@@ -135,7 +135,10 @@ def construir_informe(R: dict) -> str:
     apuesta = R["apuesta_C"]
 
     mat = R.get("materialidad", {})
-    decision = R.get("decision", "conservar el motor actual")
+    decision = R.get("decision", "Conservar el motor actual")
+    # "PILOTO ACOTADO. Conservar..." -> "PILOTO ACOTADO — Conservar..." para que
+    # encaje dentro de una frase sin partirla en dos oraciones.
+    decision_fmt = decision.replace(". ", " — ")
     mejora_orden = comp["existe"]
     verbo = "aporta" if mejora_orden else "no aporta de forma demostrable"
     # Magnitud, no solo signo: es lo que separa "detectable" de "importante".
@@ -170,7 +173,8 @@ def construir_informe(R: dict) -> str:
 
     # --- matriz de evidencias ---
     matriz = [
-        ["1 · Integridad de datos", "§2–§3 del cuaderno; 4 controles ejecutados",
+        ["1 · Integridad de datos",
+         "§2–§3 del cuaderno; 5 controles + verificar_causalidad.py",
          f'{R["n_transacciones"]:,} transacciones, {pct(R["tasa_fraude"], 2)} de fraude, '
          f'partición temporal 70/15/15 sin fuga.',
          "Datos sintéticos: la validez externa no está demostrada."],
@@ -217,7 +221,7 @@ supera al motor actual en ningún mecanismo, y sumárselo mejora la detección s
 en milésimas. El único beneficio con magnitud defendible es otro:
 <b>{pct(abs(mat.get("delta_fp_rel", 0)), 0)} menos bloqueos a clientes legítimos</b>
 detectando prácticamente el mismo fraude.</p>
-<p><b>Recomendación: {decision.lower()}.</b></p>
+<p><b>Recomendación: {decision_fmt}.</b></p>
 </div>
 
 <div class="banda">
@@ -250,7 +254,9 @@ Sin esos confusores, un umbral sobre el monto máximo resolvería el problema.</
 <p><b>Protocolo temporal.</b> La partición es por fecha global (70 / 15 / 15), nunca
 aleatoria: entrenamos con lo más antiguo y probamos con lo más reciente. El
 conjunto de prueba se abrió <b>una sola vez</b>, después de fijar arquitecturas,
-hiperparámetros y umbral. Cuatro controles ejecutados en el cuaderno verifican
+hiperparámetros y umbral. <b>Cinco controles ejecutados</b> en el cuaderno, más un
+script de verificación independiente que elimina el futuro del conjunto y
+reconstruye las variables —ninguna de las 16 cambia—, comprueban
 que ninguna ventana contiene información posterior al instante de decisión.</p>
 
 <h2>2 · Comparación común</h2>
@@ -415,7 +421,7 @@ dimensionar la decisión, <b>no una promesa de ahorro</b>.</p></div>
 punteadas marcan los umbrales elegidos) y ahorro en prueba (derecha).</figcaption></figure>
 
 <h2 class="salto">6 · Recomendación, errores y límites</h2>
-<div class="caja"><p><b>Recomendación: {decision.lower()}.</b> El motor de agregados
+<div class="caja"><p><b>Recomendación: {decision_fmt}.</b> El motor de agregados
 es y sigue siendo la columna vertebral: resuelve bien los fraudes cuyo indicio
 está en la magnitud y ningún modelo de los que probamos lo supera.</p>
 <p>Lo que justificaría incorporar la señal secuencial <b>no es detectar más

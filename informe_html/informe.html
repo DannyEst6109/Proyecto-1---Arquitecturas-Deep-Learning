@@ -5,7 +5,7 @@
 @page { size: A4; margin: 16mm 15mm 14mm 15mm; }
 * { box-sizing: border-box; }
 body { font-family: Georgia, 'Times New Roman', serif; font-size: 9.6pt;
-       line-height: 1.42; color: #1a1a1a; margin: 0; }
+       line-height: 1.42; color: #1a1a1a; margin: 0; background: #fff; }
 h1 { font-size: 17pt; margin: 0 0 2px; letter-spacing: -.3px; }
 h2 { font-size: 11.5pt; margin: 15px 0 6px; padding-bottom: 3px;
      border-bottom: 1.5px solid #1f3a5f; color: #1f3a5f; }
@@ -64,9 +64,9 @@ tienen una propiedad incómoda: <b>son idénticas si se baraja la secuencia</b>.
 pero <b>vale mucho menos de lo que esperábamos</b>. Un modelo de secuencias no
 supera al motor actual en ningún mecanismo, y sumárselo mejora la detección solo
 en milésimas. El único beneficio con magnitud defendible es otro:
-<b>0 % menos bloqueos a clientes legítimos</b>
+<b>28 % menos bloqueos a clientes legítimos</b>
 detectando prácticamente el mismo fraude.</p>
-<p><b>Recomendación: conservar el motor actual.</b></p>
+<p><b>Recomendación: PILOTO ACOTADO — Conservar el motor actual como decisión principal.</b></p>
 </div>
 
 <div class="banda">
@@ -76,7 +76,7 @@ detectando prácticamente el mismo fraude.</p>
     <div class="e">AUC-PR del motor actual — el mejor modelo individual</div></div>
   <div class="tarjeta"><div class="k">+0.0013</div>
     <div class="e">lo único que gana al sumarle la señal de orden</div></div>
-  <div class="tarjeta"><div class="k">+0</div>
+  <div class="tarjeta"><div class="k">-95</div>
     <div class="e">bloqueos indebidos, a igual exhaustividad</div></div>
 </div>
 
@@ -99,7 +99,9 @@ Sin esos confusores, un umbral sobre el monto máximo resolvería el problema.</
 <p><b>Protocolo temporal.</b> La partición es por fecha global (70 / 15 / 15), nunca
 aleatoria: entrenamos con lo más antiguo y probamos con lo más reciente. El
 conjunto de prueba se abrió <b>una sola vez</b>, después de fijar arquitecturas,
-hiperparámetros y umbral. Cuatro controles ejecutados en el cuaderno verifican
+hiperparámetros y umbral. <b>Cinco controles ejecutados</b> en el cuaderno, más un
+script de verificación independiente que elimina el futuro del conjunto y
+reconstruye las variables —ninguna de las 16 cambia—, comprueban
 que ninguna ventana contiene información posterior al instante de decisión.</p>
 
 <h2>2 · Comparación común</h2>
@@ -216,15 +218,15 @@ ajustó en validación y se aplicó sin cambios a prueba.</p>
 
 <p><b>Aquí está el hallazgo que importa.</b> Sobre los 36 días del conjunto de
 prueba, añadir la señal de orden cambia el ahorro en apenas
-<b>Q4,500</b> (0.00 %):
+<b>Q4,500</b> (0.25 %):
 en dinero, es indistinguible de no hacer nada. Pero los bloqueos a clientes
 legítimos caen de <b>335</b> a <b>240</b>
-(0 % menos) mientras la exhaustividad se
+(28 % menos) mientras la exhaustividad se
 mantiene prácticamente igual (0.963 → 0.956).</p>
 
 <p>La razón de esa asimetría es aritmética: un bloqueo indebido cuesta 23 veces
-menos que un fraude, así que evitar 0 bloqueos casi no
-mueve la cuenta. Pero son 0 clientes reales a los que
+menos que un fraude, así que evitar 95 bloqueos casi no
+mueve la cuenta. Pero son 95 clientes reales a los que
 no se les rechaza una compra, y ese beneficio no aparece en el AUC-PR ni en el
 balance. <b>El caso a favor del modelo secuencial es de experiencia del cliente,
 no de detección de fraude.</b></p>
@@ -243,13 +245,13 @@ dimensionar la decisión, <b>no una promesa de ahorro</b>.</p></div>
 punteadas marcan los umbrales elegidos) y ahorro en prueba (derecha).</figcaption></figure>
 
 <h2 class="salto">6 · Recomendación, errores y límites</h2>
-<div class="caja"><p><b>Recomendación: conservar el motor actual.</b> El motor de agregados
+<div class="caja"><p><b>Recomendación: PILOTO ACOTADO — Conservar el motor actual como decisión principal.</b> El motor de agregados
 es y sigue siendo la columna vertebral: resuelve bien los fraudes cuyo indicio
 está en la magnitud y ningún modelo de los que probamos lo supera.</p>
 <p>Lo que justificaría incorporar la señal secuencial <b>no es detectar más
 fraude</b> —eso no lo logra— sino <b>molestar a menos clientes detectando el
 mismo fraude</b>. Si el área de experiencia del cliente considera que
-0 % menos rechazos indebidos vale el costo de
+28 % menos rechazos indebidos vale el costo de
 mantener un segundo modelo en producción, el piloto se justifica. Si la
 prioridad es puramente reducir pérdidas por fraude, con la evidencia actual
 <b>no</b>.</p></div>
@@ -313,7 +315,7 @@ cifra de ahorro.</p>
 
 <h2 class="salto">Matriz de evidencias</h2>
 <p>Guía de lectura: dónde está cada evidencia, qué concluimos y qué la limita.</p>
-<table class=""><thead><tr><th>Evidencia</th><th>Dónde aparece</th><th>Conclusión</th><th>Limitación</th></tr></thead><tbody><tr><td>1 · Integridad de datos</td><td>§2–§3 del cuaderno; 4 controles ejecutados</td><td>260,158 transacciones, 1.07 % de fraude, partición temporal 70/15/15 sin fuga.</td><td>Datos sintéticos: la validez externa no está demostrada.</td></tr><tr><td>2 · Comparación común</td><td>§7, figura 2</td><td>AUC-PR: A 0.951 · B 0.860 · C 0.857 · A+B 0.952.</td><td>B no recibe agregadas; parte de la brecha es de representación.</td></tr><tr><td>3 · Valor del orden</td><td>§8 figura 3; §9 figura 4; §11.5</td><td>Barajar el orden cuesta 43 % del AUC-PR de B. B colapsa en el control sin orden, como se predijo.</td><td>B no supera a A en ningún mecanismo: el orden aporta, pero no basta solo.</td></tr><tr><td>4 · Apuesta del equipo</td><td>HIPOTESIS_C.md (pre-registrada); §6</td><td>Margen en validación -0.0871 frente al +0.02 exigido: NO se cumple.</td><td>Una sola semilla por variante; no se midió variabilidad entre semillas.</td></tr><tr><td>5 · Decisión económica</td><td>§11 figura 6</td><td>Umbral 0.761; ahorro de Q1,792,200 en 36 días.</td><td>Costos fijos y uniformes; extrapolación lineal a 1.4 M de tarjetas.</td></tr><tr><td>6 · Recomendación y límites</td><td>§12 análisis de error; §14</td><td>Complementar el motor actual, no reemplazarlo.</td><td>Confusor de sondeo mal calibrado (§12.3): sesga §9 a favor de A.</td></tr></tbody></table>
+<table class=""><thead><tr><th>Evidencia</th><th>Dónde aparece</th><th>Conclusión</th><th>Limitación</th></tr></thead><tbody><tr><td>1 · Integridad de datos</td><td>§2–§3 del cuaderno; 5 controles + verificar_causalidad.py</td><td>260,158 transacciones, 1.07 % de fraude, partición temporal 70/15/15 sin fuga.</td><td>Datos sintéticos: la validez externa no está demostrada.</td></tr><tr><td>2 · Comparación común</td><td>§7, figura 2</td><td>AUC-PR: A 0.951 · B 0.860 · C 0.857 · A+B 0.952.</td><td>B no recibe agregadas; parte de la brecha es de representación.</td></tr><tr><td>3 · Valor del orden</td><td>§8 figura 3; §9 figura 4; §11.5</td><td>Barajar el orden cuesta 43 % del AUC-PR de B. B colapsa en el control sin orden, como se predijo.</td><td>B no supera a A en ningún mecanismo: el orden aporta, pero no basta solo.</td></tr><tr><td>4 · Apuesta del equipo</td><td>HIPOTESIS_C.md (pre-registrada); §6</td><td>Margen en validación -0.0871 frente al +0.02 exigido: NO se cumple.</td><td>Una sola semilla por variante; no se midió variabilidad entre semillas.</td></tr><tr><td>5 · Decisión económica</td><td>§11 figura 6</td><td>Umbral 0.761; ahorro de Q1,792,200 en 36 días.</td><td>Costos fijos y uniformes; extrapolación lineal a 1.4 M de tarjetas.</td></tr><tr><td>6 · Recomendación y límites</td><td>§12 análisis de error; §14</td><td>Complementar el motor actual, no reemplazarlo.</td><td>Confusor de sondeo mal calibrado (§12.3): sesga §9 a favor de A.</td></tr></tbody></table>
 
 <div class="pie">
 Informe generado automáticamente desde <i>artefactos/resultados.json</i>; ninguna
