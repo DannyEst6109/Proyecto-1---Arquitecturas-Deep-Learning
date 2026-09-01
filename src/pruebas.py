@@ -42,8 +42,15 @@ from .modelos import predecir
 
 def permutacion_controlada(modelo, datos, y: np.ndarray,
                            n_repeticiones: int = 5,
-                           semilla_base: int = 101) -> pd.DataFrame:
+                           semilla_base: int = 101,
+                           fijar_objetivo: bool = True) -> pd.DataFrame:
     """Evalua el modelo con el orden barajado, varias veces.
+
+    `fijar_objetivo=True` (el valor por defecto y el que se reporta) baraja solo
+    la HISTORIA y mantiene la transaccion calificada en la ultima posicion. Es
+    la version controlada: sin ella, la permutacion tambien le quita al modelo
+    el acceso a los atributos del evento que debe puntuar, y la caida medida
+    mezcla dos efectos distintos.
 
     Devuelve una fila por repeticion mas la referencia con el orden original.
     """
@@ -52,12 +59,34 @@ def permutacion_controlada(modelo, datos, y: np.ndarray,
               "caida_relativa": 0.0}]
     for i in range(n_repeticiones):
         p = predecir(modelo, datos, permutar_historia=True,
-                     semilla=semilla_base + i)
+                     semilla=semilla_base + i, fijar_objetivo=fijar_objetivo)
         valor = auc_pr(y, p)
         filas.append({
             "corrida": f"barajado {i + 1}",
             "auc_pr": valor,
             "caida_relativa": 1.0 - valor / referencia if referencia else np.nan,
+        })
+    return pd.DataFrame(filas)
+
+
+def comparar_variantes_permutacion(modelo, datos, y: np.ndarray,
+                                   n_repeticiones: int = 3) -> pd.DataFrame:
+    """Contrasta la permutacion controlada con la version sin control.
+
+    Sirve para mostrar cuanto de la caida se debe realmente al orden y cuanto
+    seria un artefacto de mover tambien la transaccion calificada.
+    """
+    filas = []
+    for etiqueta, fijar in [("solo la historia (controlada)", True),
+                            ("toda la ventana (sin control)", False)]:
+        tabla = permutacion_controlada(modelo, datos, y, n_repeticiones,
+                                       fijar_objetivo=fijar)
+        res = resumen_permutacion(tabla)
+        filas.append({
+            "variante": etiqueta,
+            "auc_pr_original": res["auc_pr_original"],
+            "auc_pr_barajado": res["auc_pr_barajado_medio"],
+            "caida_relativa": res["caida_relativa_media"],
         })
     return pd.DataFrame(filas)
 

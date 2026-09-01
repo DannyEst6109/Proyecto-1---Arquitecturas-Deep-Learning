@@ -95,12 +95,26 @@ def _metricas(y: np.ndarray, puntajes: np.ndarray, umbral: float) -> ResultadoUm
                            tp, fp, fn, tn, costo, costo_sin)
 
 
+def _candidatos_umbral(puntajes: np.ndarray, n: int) -> np.ndarray:
+    """Rejilla de umbrales, incluyendo los dos extremos degenerados.
+
+    Los cuantiles por si solos nunca llegan a "no bloquear nada": el candidato
+    mas alto es max(puntajes), y con la regla `puntaje >= umbral` eso siempre
+    marca al menos un positivo. Se anade un umbral por encima del maximo para
+    que la opcion de no bloquear nada compita de verdad, y uno en cero para el
+    otro extremo. Con la asimetria 23:1 es improbable que gane el extremo
+    conservador, pero dejarlo fuera truncaria la curva de costo del informe.
+    """
+    base = np.quantile(puntajes, np.linspace(0.0, 1.0, n))
+    extremos = [0.0, float(np.nextafter(puntajes.max(), np.inf))]
+    return np.unique(np.concatenate([base, extremos]))
+
+
 def umbral_por_costo(y: np.ndarray, puntajes: np.ndarray,
                      n_candidatos: int = 400) -> ResultadoUmbral:
     """Umbral que minimiza el costo esperado. AJUSTAR SOLO EN VALIDACION."""
-    candidatos = np.unique(np.quantile(puntajes, np.linspace(0.0, 1.0, n_candidatos)))
     mejor = None
-    for u in candidatos:
+    for u in _candidatos_umbral(puntajes, n_candidatos):
         r = _metricas(y, puntajes, float(u))
         if mejor is None or r.costo_total < mejor.costo_total:
             mejor = r
@@ -116,8 +130,8 @@ def evaluar_en_umbral(y: np.ndarray, puntajes: np.ndarray,
 def curva_costo(y: np.ndarray, puntajes: np.ndarray,
                 n: int = 200) -> pd.DataFrame:
     """Costo total en funcion del umbral. Para la figura del informe."""
-    candidatos = np.unique(np.quantile(puntajes, np.linspace(0.0, 1.0, n)))
-    filas = [_metricas(y, puntajes, float(u)).como_fila() for u in candidatos]
+    filas = [_metricas(y, puntajes, float(u)).como_fila()
+             for u in _candidatos_umbral(puntajes, n)]
     return pd.DataFrame(filas)
 
 
@@ -148,18 +162,55 @@ def proyeccion_mensual(resultado: ResultadoUmbral, dias_evaluados: float,
 # Incertidumbre
 # --------------------------------------------------------------------------
 
+class _Remuestreador:
+    """Genera remuestras bootstrap, opcionalmente POR BLOQUES.
+
+    Por que por bloques: el fraude no llega de forma independiente, llega en
+    episodios. Una tarjeta comprometida aporta 7 transacciones fraudulentas en
+    promedio, y son casi el mismo evento repetido. Un bootstrap que remuestrea
+    filas i.i.d. trata esas 7 como 7 observaciones independientes e infravalora
+    la varianza: el tamano de muestra efectivo de la clase positiva es el numero
+    de EPISODIOS (~65 en prueba), no el de filas (~465).
+
+    Remuestrear tarjetas completas respeta esa correlacion y produce intervalos
+    honestos, que suelen ser bastante mas anchos.
+    """
+
+    def __init__(self, n_obs: int, grupos: np.ndarray | None) -> None:
+        self.n_obs = n_obs
+        self.por_bloques = grupos is not None
+        if self.por_bloques:
+            orden = np.argsort(grupos, kind="mergesort")
+            g_ord = np.asarray(grupos)[orden]
+            cortes = np.flatnonzero(np.r_[True, g_ord[1:] != g_ord[:-1]])
+            self.bloques = np.split(orden, cortes[1:])
+            self.n_bloques = len(self.bloques)
+
+    def muestra(self, rng: np.random.Generator) -> np.ndarray:
+        if not self.por_bloques:
+            return rng.integers(0, self.n_obs, self.n_obs)
+        elegidos = rng.integers(0, self.n_bloques, self.n_bloques)
+        return np.concatenate([self.bloques[j] for j in elegidos])
+
+
 def bootstrap_auc_pr(y: np.ndarray, puntajes: np.ndarray, n: int = 400,
-                     semilla: int = 20853) -> tuple[float, float, float]:
+                     semilla: int = 20853,
+                     grupos: np.ndarray | None = None
+                     ) -> tuple[float, float, float]:
     """AUC-PR con intervalo percentil 95 %.
+
+    Pasar `grupos` (por ejemplo `id_tarjeta`) activa el bootstrap por bloques,
+    que es lo correcto cuando las observaciones estan correlacionadas dentro de
+    cada grupo. Ver `_Remuestreador`.
 
     Sirve para no exagerar: una diferencia entre modelos menor que el ancho del
     intervalo no puede presentarse como una mejora demostrada.
     """
     rng = np.random.default_rng(semilla)
-    n_obs = len(y)
+    rem = _Remuestreador(len(y), grupos)
     valores = np.empty(n)
     for i in range(n):
-        m = rng.integers(0, n_obs, n_obs)
+        m = rem.muestra(rng)
         if y[m].sum() == 0:       # remuestreo degenerado
             valores[i] = np.nan
             continue
@@ -172,17 +223,19 @@ def bootstrap_auc_pr(y: np.ndarray, puntajes: np.ndarray, n: int = 400,
 
 def bootstrap_diferencia(y: np.ndarray, puntajes_a: np.ndarray,
                          puntajes_b: np.ndarray, n: int = 400,
-                         semilla: int = 20853) -> dict:
+                         semilla: int = 20853,
+                         grupos: np.ndarray | None = None) -> dict:
     """Intervalo para AUC-PR(B) - AUC-PR(A) sobre las MISMAS remuestras.
 
     Emparejar las remuestras es lo que permite comparar dos modelos evaluados
-    en el mismo conjunto sin inflar la varianza.
+    en el mismo conjunto sin inflar la varianza. `grupos` activa el bootstrap
+    por bloques (ver `_Remuestreador`).
     """
     rng = np.random.default_rng(semilla)
-    n_obs = len(y)
+    rem = _Remuestreador(len(y), grupos)
     dif = np.empty(n)
     for i in range(n):
-        m = rng.integers(0, n_obs, n_obs)
+        m = rem.muestra(rng)
         if y[m].sum() == 0:
             dif[i] = np.nan
             continue
@@ -194,8 +247,10 @@ def bootstrap_diferencia(y: np.ndarray, puntajes_a: np.ndarray,
         "diferencia": observada,
         "ic_inf": float(np.percentile(dif, 2.5)),
         "ic_sup": float(np.percentile(dif, 97.5)),
-        # Proporcion de remuestras en que B no supera a A.
-        "p_no_mejora": float(np.mean(dif <= 0)),
+        # Fraccion de remuestras en que B no supera a A. NO es un valor p:
+        # es una medida descriptiva de la estabilidad del signo.
+        "frac_sin_mejora": float(np.mean(dif <= 0)),
+        "por_bloques": bool(grupos is not None),
     }
 
 
@@ -234,8 +289,22 @@ def _desglose(df_eval: pd.DataFrame, columna: str,
     """Metricas por grupo de fraude, manteniendo fija la clase negativa.
 
     Cada fila enfrenta TODOS los legitimos contra el fraude de un solo grupo.
-    Si en vez de eso se filtrara tambien la clase negativa, la prevalencia
-    cambiaria entre filas y los AUC-PR dejarian de ser comparables.
+    Eso mantiene constante la clase negativa, de modo que la comparacion
+    ENTRE MODELOS dentro de una misma fila es limpia: A, B y C se evaluan sobre
+    exactamente los mismos datos.
+
+    Advertencia sobre comparar ENTRE FILAS
+    --------------------------------------
+    La prevalencia SI cambia de una fila a otra, porque el numero de fraudes de
+    cada grupo es distinto mientras los negativos son siempre los mismos. Y el
+    AUC-PR de un clasificador aleatorio es exactamente la prevalencia. Un grupo
+    pequeno tiene una linea base mas baja y, por tanto, AUC-PR estructuralmente
+    menores para TODOS los modelos.
+
+    Por eso se devuelve la columna `tasa_base` y, para cada modelo, un `lift_*`
+    = AUC-PR / tasa_base. El lift si es comparable entre filas; el AUC-PR
+    crudo, no. Interpretar la magnitud de `aucpr_B - aucpr_A` de una fila
+    frente a otra sin mirar la tasa base es un error.
     """
     y = df_eval["es_fraude"].to_numpy()
     etiquetas = df_eval[columna].astype(str).to_numpy()
@@ -245,10 +314,15 @@ def _desglose(df_eval: pd.DataFrame, columna: str,
     for grupo in grupos:
         sel = (y == 0) | (etiquetas == grupo)
         y_sub = y[sel]
-        fila = {columna.replace("_nom", ""): grupo, "n_fraudes": int(y_sub.sum())}
+        base = float(y_sub.mean())
+        fila = {columna.replace("_nom", ""): grupo,
+                "n_fraudes": int(y_sub.sum()),
+                "tasa_base": base}
         for nombre, p in puntajes.items():
             p_sub = p[sel]
-            fila[f"aucpr_{nombre}"] = auc_pr(y_sub, p_sub)
+            valor = auc_pr(y_sub, p_sub)
+            fila[f"aucpr_{nombre}"] = valor
+            fila[f"lift_{nombre}"] = valor / base if base else np.nan
             fila[f"exhaustividad_{nombre}"] = _metricas(
                 y_sub, p_sub, umbrales[nombre]).exhaustividad
         filas.append(fila)

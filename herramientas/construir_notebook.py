@@ -290,10 +290,28 @@ controles.append({
     "pasa": True,
 })
 
+# Control 5: episodios de fraude repartidos entre dos bloques. No es fuga de
+# futuro -- cada fila se evalúa con su propio pasado -- pero significa que un
+# mismo episodio puede aparecer en parte en entrenamiento y en parte en prueba.
+# Se cuantifica para declararlo, en vez de esperar a que lo encuentre el comité.
+epis = df[df["id_episodio"] >= 0].groupby("id_episodio")["split"].nunique()
+n_cruzan = int((epis > 1).sum())
+controles.append({
+    "control": "5. Episodios de fraude que cruzan un corte temporal",
+    "esperado": "se cuantifican y se declaran (no son fuga de futuro)",
+    "obtenido": f"{n_cruzan} de {len(epis)} episodios "
+                f"({100 * n_cruzan / len(epis):.1f} %) tocan dos bloques",
+    "pasa": True,
+})
+
 tabla_controles = pd.DataFrame(controles)
 display(tabla_controles)
 assert tabla_controles["pasa"].all(), "Un control de fuga falló"
 print("\nTodos los controles de fuga pasan.")
+print(f"\nNota sobre el control 5: los {n_cruzan} episodios repartidos entre bloques")
+print("no violan la causalidad, porque ninguna fila usa información posterior a sí")
+print("misma. Sí implican que una porción muy pequeña del fraude de prueba pertenece")
+print("a un episodio ya iniciado antes del corte. Lo declaramos como límite.")
 """)
 
 # ==========================================================================
@@ -506,10 +524,35 @@ print("umbrales elegidos en validación:",
       {k: round(v, 4) for k, v in umbrales.items()})
 """)
 
+md(r"""
+### Los intervalos de confianza se calculan por bloques
+
+El fraude no llega de forma independiente: llega en **episodios**. Una tarjeta
+comprometida aporta varias transacciones fraudulentas que son casi el mismo
+evento repetido. Un bootstrap que remuestrea filas al azar las trataría como
+observaciones independientes e **infravaloraría la varianza**: el tamaño de
+muestra efectivo de la clase positiva es el número de tarjetas comprometidas, no
+el de filas.
+
+Por eso remuestreamos **tarjetas completas**. Los intervalos salen más anchos, y
+eso es lo correcto: son los honestos.
+""")
+
+code(r"""
+# Unidad de remuestreo: la tarjeta. Todas sus transacciones entran o salen juntas.
+grupos_test = exp.bloque("test")["id_tarjeta"].to_numpy()
+print(f"{len(grupos_test):,} transacciones de prueba en "
+      f"{len(np.unique(grupos_test)):,} tarjetas")
+print(f"tarjetas con al menos un fraude: "
+      f"{len(np.unique(grupos_test[y_test == 1])):,}  "
+      f"(frente a {int(y_test.sum()):,} transacciones fraudulentas)")
+""")
+
 code(r"""
 filas = []
 for n, p in puntajes.items():
-    punto, lo, hi = ev.bootstrap_auc_pr(y_test, p["test"], n=300)
+    punto, lo, hi = ev.bootstrap_auc_pr(y_test, p["test"], n=300,
+                                        grupos=grupos_test)
     r = ev.evaluar_en_umbral(y_test, p["test"], umbrales[n])
     filas.append({
         "modelo": n,
@@ -543,7 +586,7 @@ ax[0].set_xlabel("exhaustividad"); ax[0].set_ylabel("precisión")
 ax[0].set_title("Curva precisión–exhaustividad (prueba)"); ax[0].legend(fontsize=8)
 
 for n in ["A", "B", "C"]:
-    h = ev.bootstrap_auc_pr(y_test, puntajes[n]["test"], n=300)
+    h = ev.bootstrap_auc_pr(y_test, puntajes[n]["test"], n=300, grupos=grupos_test)
     ax[1].errorbar(n, h[0], yerr=[[h[0]-h[1]], [h[2]-h[0]]], fmt="o",
                    capsize=5, color=colores[n], ms=7)
 ax[1].set_ylabel("AUC-PR"); ax[1].set_title("AUC-PR con IC 95 % (bootstrap)")
@@ -566,7 +609,8 @@ code(r"""
 pares = [("A", "B"), ("A", "C"), ("B", "C"), ("B", "C1")]
 filas = []
 for a, b in pares:
-    d = ev.bootstrap_diferencia(y_test, puntajes[a]["test"], puntajes[b]["test"], n=300)
+    d = ev.bootstrap_diferencia(y_test, puntajes[a]["test"], puntajes[b]["test"],
+                                n=300, grupos=grupos_test)
     filas.append({
         "comparación": f"{b} − {a}",
         "diferencia AUC-PR": d["diferencia"],
@@ -597,6 +641,28 @@ Repetimos con **5 permutaciones distintas**: una sola podría ser afortunada.
 
 **Umbral fijado de antemano:** consideramos evidencia de uso del orden una
 caída relativa de AUC-PR de al menos **15 %**.
+
+### Un control que hace falta y no es obvio
+
+Ambos modelos leen su predicción del estado de la **última posición** de la
+ventana, que por construcción es la transacción que se está calificando. Si al
+barajar movemos también esa posición, la permutación destruye **dos cosas a la
+vez**: el orden de la historia y el acceso del modelo a los atributos del propio
+evento que debe puntuar. La caída resultante sobreestimaría el aporte del orden,
+porque parte de ella es simplemente que el modelo ya no sabe qué transacción
+está evaluando.
+
+Por eso la permutación que reportamos baraja **solo la historia** (posiciones
+0 a K−2) y deja el evento calificado fijo en K−1. Abajo mostramos las dos
+variantes para que la diferencia sea visible y auditable.
+""")
+
+code(r"""
+# Contraste entre la permutación controlada y la versión sin control.
+variantes = pr.comparar_variantes_permutacion(modelo_B, exp.tensores["test"], y_test)
+display(variantes.round(4))
+print("La segunda fila NO mide solo orden: también le quita al modelo el evento")
+print("que debe puntuar. Por eso reportamos la primera.")
 """)
 
 code(r"""
@@ -653,8 +719,17 @@ construcción— la ventaja vendría de la mayor capacidad del modelo y no del
 orden, y nuestra conclusión sería falsa.
 
 Cada fila enfrenta **todos los legítimos** contra el fraude de un solo grupo,
-manteniendo fija la clase negativa; de otro modo la prevalencia cambiaría entre
-filas y los AUC-PR no serían comparables.
+manteniendo fija la clase negativa. Eso hace que la comparación **entre modelos
+dentro de una fila** sea limpia: A, B y C se evalúan sobre exactamente los
+mismos datos.
+
+> ⚠️ **Pero no se pueden comparar los AUC-PR entre filas.** El número de fraudes
+> de cada grupo es distinto y los negativos son siempre los mismos, así que la
+> prevalencia cambia de una fila a otra —y el AUC-PR de un clasificador aleatorio
+> *es* la prevalencia. Un grupo pequeño tiene una línea base más baja y por tanto
+> AUC-PR estructuralmente menores para todos los modelos. Por eso incluimos la
+> columna `tasa_base` y el **lift** (AUC-PR ÷ tasa base), que sí es comparable
+> entre filas.
 """)
 
 code(r"""
@@ -662,7 +737,15 @@ p_test = {n: p["test"] for n, p in puntajes.items()}
 tabla_mec = ev.por_mecanismo(exp.bloque("test"), p_test, umbrales)
 tabla_mec["ventaja_B_sobre_A"] = tabla_mec["aucpr_B"] - tabla_mec["aucpr_A"]
 tabla_mec["ventaja_C_sobre_A"] = tabla_mec["aucpr_C"] - tabla_mec["aucpr_A"]
-display(tabla_mec.round(4))
+
+cols_ver = ["mecanismo", "n_fraudes", "tasa_base",
+            "aucpr_A", "aucpr_B", "aucpr_C", "ventaja_B_sobre_A",
+            "lift_A", "lift_B", "lift_C"]
+display(tabla_mec[cols_ver].round(4))
+
+print(f"La prevalencia varía {tabla_mec['tasa_base'].max() / tabla_mec['tasa_base'].min():.1f}x "
+      f"entre el grupo mayor y el menor.")
+print("Comparar aucpr_* entre filas sin mirar tasa_base es un error; para eso está lift_*.")
 """)
 
 md(r"""
@@ -689,7 +772,9 @@ code(r"""
 tabla_rol = ev.por_rol(exp.bloque("test"), p_test, umbrales)
 tabla_rol["ventaja_B_sobre_A"] = tabla_rol["aucpr_B"] - tabla_rol["aucpr_A"]
 tabla_rol["ventaja_C_sobre_A"] = tabla_rol["aucpr_C"] - tabla_rol["aucpr_A"]
-display(tabla_rol.round(4))
+display(tabla_rol[["rol", "n_fraudes", "tasa_base", "aucpr_A", "aucpr_B",
+                   "aucpr_C", "ventaja_B_sobre_A",
+                   "lift_A", "lift_B", "lift_C"]].round(4))
 """)
 
 code(r"""
@@ -852,14 +937,17 @@ usa para reportar.
 - Si la mezcla **no** supera a A, la señal de B es redundante y la respuesta al
   comité es *no*.
 - Si la mezcla **sí** supera a A, entonces B aporta información que A no tiene.
-  Y como la sección 8 demostró que la señal de B es de orden en un 91 %, esa
-  información aportada **es información de orden**.
+  Y como la sección 8 demostró que la señal de B depende mayoritariamente del
+  orden, esa información aportada **es información de orden**.
 
 Esta es la cadena de evidencia que responde la pregunta:
 
-> **(1)** el desempeño de B depende del orden en un 91 % *(permutación)*
+> **(1)** el desempeño de B depende del orden de la historia *(permutación, §8)*
 > **(2)** B aporta señal que A no tiene *(esta sección)*
 > **⟹** el orden aporta información que los agregados no capturan.
+
+La celda siguiente imprime las magnitudes; ninguna cifra de este cuaderno está
+escrita a mano en el texto.
 """)
 
 code(r"""
@@ -885,7 +973,8 @@ print(f"C (fusión neuronal, la apuesta): {ev.auc_pr(y_test, p_test['C']):.4f}")
 print(f"A + B (mezcla logística)      : {aucpr_mix:.4f}")
 print(f"\npesos de la mezcla -> A: {mezcla.coef_[0][0]:+.3f}   B: {mezcla.coef_[0][1]:+.3f}")
 
-d = ev.bootstrap_diferencia(y_test, p_test["A"], p_mezcla, n=300)
+d = ev.bootstrap_diferencia(y_test, p_test["A"], p_mezcla, n=300,
+                            grupos=grupos_test)
 print(f"\nmezcla − A = {d['diferencia']:+.4f}  "
       f"IC 95 % [{d['ic_inf']:+.4f}, {d['ic_sup']:+.4f}]")
 COMPLEMENTARIEDAD = d["ic_inf"] > 0
@@ -944,7 +1033,19 @@ que resiste incluso al motor de agregados— es {mec_peor_A}.
 """)
 ''')
 
-md("### 12.2 ¿Dónde mira la atención?")
+md(r"""
+### 12.2 ¿Dónde mira la atención?
+
+**Cuidado con una trampa en la medición.** La transacción que se está calificando
+ocupa la última posición de su propia ventana, y en estos casos esa transacción
+*es* fraude. Si contáramos los aciertos sin más, bastaría con que la atención se
+fijara en la última posición —lo más natural, es el evento más reciente— para
+declarar éxito sin que el modelo haya señalado nada de la **historia**.
+
+El criterio útil para un analista es otro: ¿la atención señala una transacción
+**anterior** del mismo episodio? Eso es lo que le diría *«esta alerta viene de lo
+que pasó antes»*. Medimos las dos cosas por separado.
+""")
 
 code(r"""
 # Verdaderos positivos de `escalada_prueba` con rol de sondeo: los casos donde
@@ -957,16 +1058,26 @@ posiciones = np.flatnonzero(es_sondeo)[:400]
 if len(posiciones):
     pesos, filas_glob = mo.pesos_atencion(modelo_C, exp.tensores["test"], posiciones)
     es_fraude_glob = df["es_fraude"].to_numpy()
-    epis_glob = df["id_episodio"].to_numpy()
 
     foco = pesos.argmax(axis=1)
     fila_foco = filas_glob[np.arange(len(foco)), foco]
-    acierta = (es_fraude_glob[fila_foco] == 1)
+    valido = fila_foco >= 0          # guarda: nunca indexar con -1
+    mira_al_objetivo = foco == exp.k - 1
+
+    # Medida ingenua (la que se cumpliría sola) y medida útil.
+    ingenua = (es_fraude_glob[np.where(valido, fila_foco, 0)] == 1) & valido
+    en_historia = ingenua & ~mira_al_objetivo
+
     print(f"Verdaderos positivos de sondeo analizados: {len(posiciones)}")
-    print(f"La atención se concentra en una transacción del fraude en "
-          f"{100*acierta.mean():.1f} % de los casos (criterio declarado: >= 60 %)")
-    print("Criterio de interpretabilidad:",
-          "SE CUMPLE" if acierta.mean() >= 0.60 else "NO se cumple")
+    print(f"  la atención se fija en la propia transacción calificada: "
+          f"{100*mira_al_objetivo.mean():5.1f} %   <- no explica nada")
+    print(f"  medida ingenua (cae en cualquier fraude)               : "
+          f"{100*ingenua.mean():5.1f} %   <- trivial, no la usamos")
+    print(f"  señala un fraude ANTERIOR de la historia               : "
+          f"{100*en_historia.mean():5.1f} %   <- la que importa")
+    print(f"\nCriterio declarado (>= 60 % sobre la medida útil):",
+          "SE CUMPLE" if en_historia.mean() >= 0.60 else "NO se cumple")
+    acierta = en_historia
 
     fig, ax = plt.subplots(1, 2, figsize=(12, 3.4))
     ax[0].bar(np.arange(exp.k), pesos.mean(axis=0), color="tab:red", alpha=.8)
@@ -1171,8 +1282,13 @@ resultados = {
                   "aporte_atencion_C1_menos_B": float(val_C1 - val_B),
                   "aporte_agregadas_C2_menos_C1": float(val_C - val_C1)},
     "aucpr_val": {"A": float(val_A), "B": float(val_B), "C1": float(val_C1), "C": float(val_C)},
+    # Permutacion controlada: se baraja SOLO la historia y el evento calificado
+    # permanece en la ultima posicion (ver §8).
     "caida_permutacion": {"B": float(res_B["caida_relativa_media"]),
                           "C": float(res_C["caida_relativa_media"])},
+    "permutacion_variantes": variantes.to_dict("records"),
+    "atencion_en_historia": (float(acierta.mean()) if len(posiciones) else None),
+    "episodios_cruzan_corte": n_cruzan,
     "cortes": {"fin_train": str(exp.cortes.fin_train), "fin_val": str(exp.cortes.fin_val)},
     "config_generador": {k: v for k, v in vars(cfg).items()},
 }
@@ -1255,19 +1371,19 @@ md(r"""
 ### Cierre — lo que este trabajo puede afirmar y lo que no
 
 **Puede afirmar** que el orden de las transacciones es información real y
-utilizable: un modelo entrenado sobre la secuencia pierde el 91 % de su
-desempeño cuando se le barajan los mismos eventos, y colapsa justamente en el
-mecanismo que construimos sin estructura temporal. Puede afirmar también que
-esa información **no es redundante** con las variables agregadas, porque
-combinarla con ellas mejora la detección por encima de lo que logra el motor
-de agregados solo.
+utilizable: barajar la historia —manteniendo fijos los eventos, sus valores y la
+transacción que se califica— degrada sustancialmente al modelo secuencial, que
+además colapsa justamente en el mecanismo que construimos sin estructura
+temporal. Puede afirmar también que esa información **no es redundante** con las
+variables agregadas, porque combinarla con ellas mejora la detección por encima
+de lo que logra el motor de agregados solo.
 
 **No puede afirmar** que un modelo de secuencias deba reemplazar al motor
-actual. No lo logró en ningún mecanismo. La lectura más probable es que, con
-apenas ~1,900 transacciones fraudulentas etiquetadas, la red esté limitada por
-datos y no por arquitectura: las variables agregadas son conocimiento del
-dominio ya destilado, y la red tendría que redescubrirlo desde cero con muy
-pocos ejemplos positivos.
+actual. No lo logró en ningún mecanismo. La lectura más probable es que, con el
+número de transacciones fraudulentas que hay en entrenamiento (ver §4), la red
+esté limitada por datos y no por arquitectura: las variables agregadas son
+conocimiento del dominio ya destilado, y la red tendría que redescubrirlo desde
+cero con muy pocos ejemplos positivos.
 
 **Y no puede afirmar nada sobre el fraude real del Banco del Altiplano.** Los
 datos son sintéticos y el generador refleja *nuestras* hipótesis sobre cómo se

@@ -427,9 +427,16 @@ def _episodio_toma_gradual(rng, perfil, t0) -> list[dict]:
     for i in range(n):
         avance = (i + 1) / n  # 0 -> 1, controla cuanto se ha desviado el perfil
         t = t + pd.Timedelta(hours=float(rng.uniform(4.0, 30.0)))
-        # El horario se corre progresivamente hacia la madrugada.
+        # El horario se corre progresivamente hacia la madrugada. Se reubica la
+        # hora del dia SIN retroceder en el tiempo: si la hora objetivo ya paso
+        # hoy, el evento se coloca ese mismo instante del dia SIGUIENTE. Sin
+        # esta correccion, `normalize()` podia devolver un instante anterior al
+        # evento previo y romper la deriva monotona que define a este mecanismo.
         hora_obj = (1.0 + 4.0 * rng.random()) if rng.random() < avance else t.hour
-        t = t.normalize() + pd.Timedelta(hours=float(hora_obj))
+        candidato = t.normalize() + pd.Timedelta(hours=float(hora_obj))
+        if candidato <= t:
+            candidato = candidato + pd.Timedelta(days=1)
+        t = candidato
         cat = int(rng.choice(cats_raras)) if rng.random() < avance else \
             int(rng.choice(len(CATEGORIAS), p=np.asarray(perfil.pref_categoria)))
         eventos.append({

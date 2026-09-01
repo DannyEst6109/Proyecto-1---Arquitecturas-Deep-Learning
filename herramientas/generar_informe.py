@@ -137,6 +137,17 @@ def construir_informe(R: dict) -> str:
     mejora_orden = comp["existe"]
     verbo = "aporta" if mejora_orden else "no aporta de forma demostrable"
 
+    # Contraste entre la permutación controlada y la versión sin control, si el
+    # cuaderno lo registró.
+    comparativa = ""
+    variantes = R.get("permutacion_variantes") or []
+    sin_control = next((v for v in variantes if "sin control" in v["variante"]), None)
+    if sin_control:
+        comparativa = (
+            f' Sin ese control la caída medida sería de '
+            f'{pct(sin_control["caida_relativa"], 1)} en lugar de '
+            f'{pct(perm["B"], 1)}: la diferencia es el artefacto que evitamos.')
+
     # --- mecanismos ---
     mec = sorted(R["por_mecanismo"], key=lambda x: -x["aucpr_A"])
     filas_mec = []
@@ -144,7 +155,8 @@ def construir_informe(R: dict) -> str:
         destaca = m["mecanismo"] == "vaciado_subito"
         filas_mec.append([
             f"<b>{m['mecanismo']}</b>" if destaca else m["mecanismo"],
-            f'<span class="num">{m["n_fraudes"]}</span>',
+            f'{m["n_fraudes"]}',
+            f'{100 * m["tasa_base"]:.2f} %',
             f'{m["aucpr_A"]:.3f}', f'{m["aucpr_B"]:.3f}', f'{m["aucpr_C"]:.3f}',
             f'{m["aucpr_B"] - m["aucpr_A"]:+.3f}',
         ])
@@ -262,14 +274,20 @@ del 95 % por bootstrap sobre el conjunto de prueba.</figcaption></figure>
 <b>refutar nuestra propia conclusión</b> con dos pruebas.</p>
 
 <h3>Prueba 1 — Permutación controlada</h3>
-<p>Barajamos el orden de los eventos dentro de cada ventana <b>sin cambiar los
+<p>Barajamos el orden de la historia dentro de cada ventana <b>sin cambiar los
 eventos ni sus valores</b>. Las variables agregadas son invariantes a
 permutaciones, así que siguen idénticas: lo único que se destruye es la
 secuencia. Repetimos con cinco permutaciones distintas.</p>
+<p><b>Un control que no es obvio.</b> El modelo lee su predicción del estado de la
+última posición de la ventana, que es la transacción que se está calificando. Si
+al barajar movemos también esa posición, destruiríamos dos cosas a la vez: el
+orden <i>y</i> el acceso del modelo al evento que debe puntuar. La caída
+resultante sobreestimaría el aporte del orden. Por eso barajamos <b>solo la
+historia</b> y dejamos fijo el evento calificado.{comparativa}</p>
 <div class="caja"><p><b>Resultado:</b> el modelo B pierde <b>{pct(perm["B"], 1)}</b> de su
-AUC-PR. Sin la secuencia, deja de funcionar. El modelo C solo pierde
-{pct(perm["C"], 1)}, y eso es coherente: C conserva las variables agregadas como
-red de seguridad, así que la permutación no puede dejarlo ciego del todo.</p></div>
+AUC-PR al barajar la historia. El modelo C solo pierde {pct(perm["C"], 1)}, y eso
+es coherente: C conserva las variables agregadas como red de seguridad, así que
+la permutación no puede dejarlo ciego del todo.</p></div>
 
 <figure><img src="../figuras/fig3_permutacion.png">
 <figcaption>Figura 2 — Desempeño con el orden original frente al orden barajado.
@@ -280,7 +298,12 @@ Las barras de error recorren las cinco permutaciones.</figcaption></figure>
 lugar de matizarla. Predijimos, antes de medir, que B ganaría en el mecanismo
 dependiente del orden y <b>no</b> en <span class="nowrap">vaciado&nbsp;súbito</span>,
 que construimos sin ninguna estructura temporal como control negativo.</p>
-{tabla_html(["Mecanismo", "Fraudes", "A", "B", "C", "B − A"], filas_mec)}
+{tabla_html(["Mecanismo", "Fraudes", "Tasa base", "A", "B", "C", "B − A"], filas_mec)}
+<p style="font-size:8.6pt;color:#555">La tasa base es la prevalencia de cada
+fila y equivale al AUC-PR de un clasificador al azar. Cambia entre filas porque
+el número de fraudes de cada mecanismo es distinto, así que <b>los AUC-PR no se
+comparan entre filas</b>; sí se comparan los modelos dentro de una misma fila,
+que es lo que hace la columna B − A.</p>
 <div class="caja">
 <p><b>Lo que se confirmó:</b> B se desploma en <span class="nowrap">vaciado súbito</span>
 ({[m for m in mec if m["mecanismo"] == "vaciado_subito"][0]["aucpr_B"]:.3f} frente a
@@ -398,7 +421,16 @@ prueba 2 a favor del motor de agregados. Es la primera corrección que haríamos
 inicializaciones.</li>
 <li><b>El mecanismo de toma gradual resiste a todos los modelos.</b> La señal se
 reparte en decenas de transacciones y la ventana de 20 no cubre el episodio.</li>
+<li><b>{R.get("episodios_cruzan_corte", 0)} episodios de fraude quedan repartidos
+entre dos bloques temporales.</b> No es fuga —ninguna transacción se evalúa con
+información posterior a sí misma— pero significa que una porción muy pequeña del
+fraude de prueba pertenece a un episodio iniciado antes del corte.</li>
 </ol>
+<p>Los intervalos de confianza de este informe se calculan remuestreando
+<b>tarjetas completas</b>, no transacciones sueltas. El fraude llega en episodios
+correlacionados; tratarlos como observaciones independientes produciría
+intervalos artificialmente estrechos y nos llevaría a afirmar más de lo que los
+datos sostienen.</p>
 
 <h3>Qué cambiaría nuestra recomendación</h3>
 <ol>
@@ -543,13 +575,16 @@ def construir_presentacion(R: dict) -> str:
 
 <div class="s">
   <h2>Prueba 1 — Permutación controlada</h2>
-  <p>Barajamos el orden dentro de cada ventana. <b>Mismos eventos, mismos valores,
-  mismas variables agregadas.</b> Solo se destruye la secuencia.</p>
+  <p>Barajamos el orden de <b>la historia</b> dentro de cada ventana. Mismos
+  eventos, mismos valores, mismas variables agregadas, y la transacción
+  calificada se queda en su sitio. Solo se destruye la secuencia.</p>
   <div class="grande">−{100 * perm["B"]:.0f}&nbsp;%</div>
   <div class="gsub">del AUC-PR del modelo secuencial se pierde al barajar<br>
   ({R["aucpr_test"]["B"]:.3f} → {R["aucpr_test"]["B"] * (1 - perm["B"]):.3f}, cinco permutaciones distintas)</div>
-  <div class="caja">Sin la secuencia, el modelo deja de funcionar.
-  <b>El orden no es decorativo: es lo que el modelo está leyendo.</b></div>
+  <div class="warn" style="font-size:11pt">Si barajáramos también la posición de
+  la transacción calificada, el modelo perdería además el acceso al evento que
+  debe puntuar y la caída parecería mayor de lo que es. <b>Ese control importa:
+  sin él estaríamos midiendo dos cosas y atribuyéndolas al orden.</b></div>
   {pie(4)}
 </div>
 

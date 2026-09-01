@@ -81,12 +81,16 @@ class Tensores:
 
     def lote(self, posiciones: torch.Tensor, permutar_historia: bool = False,
              generador: torch.Generator | None = None,
-             recorte: int | None = None) -> dict:
+             recorte: int | None = None,
+             fijar_objetivo: bool = True) -> dict:
         """Arma un lote de secuencias.
 
         permutar_historia : baraja el orden de los eventos DENTRO de cada
             secuencia sin alterar los eventos ni sus valores. Es la prueba de
             permutacion controlada exigida por el enunciado.
+        fijar_objetivo : mantiene la transaccion calificada en la ultima
+            posicion al permutar (ver `_permutar`). Solo se pone en False para
+            documentar el contraste con la version sin control.
         recorte : conserva solo las ultimas `recorte` posiciones de la ventana
             (las anteriores se marcan como relleno). Prueba de historia corta.
         """
@@ -101,7 +105,7 @@ class Tensores:
             mask[:, :corte] = False
 
         if permutar_historia:
-            idx, mask = _permutar(idx, mask, generador)
+            idx, mask = _permutar(idx, mask, generador, fijar_objetivo)
 
         seguro = torch.where(mask, idx, torch.zeros_like(idx))
         x_num = base.num[seguro] * mask.unsqueeze(-1)
@@ -117,12 +121,27 @@ class Tensores:
 
 
 def _permutar(idx: torch.Tensor, mask: torch.Tensor,
-              generador: torch.Generator | None) -> tuple[torch.Tensor, torch.Tensor]:
-    """Baraja las posiciones validas de cada secuencia, incluida la actual.
+              generador: torch.Generator | None,
+              fijar_objetivo: bool = True) -> tuple[torch.Tensor, torch.Tensor]:
+    """Baraja el orden de los eventos de la ventana.
 
-    Se permuta el CONJUNTO de eventos de la ventana. Las variables agregadas no
-    cambian (son invariantes a permutaciones) y los eventos son los mismos: lo
-    unico que se destruye es la secuencia.
+    Se permuta el CONJUNTO de eventos. Las variables agregadas no cambian (son
+    invariantes a permutaciones) y los eventos son los mismos: lo unico que se
+    destruye es la secuencia.
+
+    `fijar_objetivo` (por defecto True) es una correccion importante. Ambos
+    modelos leen su prediccion del estado de la ultima posicion
+    (`salida[:, -1, :]`), que por construccion es la transaccion que se esta
+    calificando. Si esa posicion tambien se baraja, la permutacion destruye dos
+    cosas a la vez: el orden de la historia Y el acceso del modelo a los
+    atributos del propio evento objetivo. La caida resultante sobreestima el
+    aporte del orden, porque parte de ella es simplemente que el modelo ya no
+    sabe que transaccion debe puntuar.
+
+    Con `fijar_objetivo=True` se baraja unicamente la HISTORIA (posiciones
+    0..K-2) y el evento calificado permanece en K-1. Eso aisla exactamente la
+    pregunta del proyecto: manteniendo constante todo lo demas, ¿importa el
+    orden en que ocurrio la historia?
     """
     b, k = idx.shape
     # Relleno con clave -1 para que el orden ascendente lo mantenga a la
@@ -130,6 +149,10 @@ def _permutar(idx: torch.Tensor, mask: torch.Tensor,
     # entre si, conservando la forma de la secuencia (relleno | eventos).
     ruido = torch.rand(b, k, generator=generador)
     clave = torch.where(mask, ruido, torch.full_like(ruido, -1.0))
+    if fijar_objetivo:
+        # Clave mayor que cualquier ruido: el objetivo queda siempre al final.
+        clave = clave.clone()
+        clave[:, -1] = 2.0
     orden = torch.argsort(clave, dim=1)
     return torch.gather(idx, 1, orden), torch.gather(mask, 1, orden)
 
@@ -368,13 +391,15 @@ def entrenar_linea_base(x_train, y_train, x_val, y_val, cols_categoricas,
 @torch.no_grad()
 def predecir(modelo: nn.Module, datos: Tensores, tam_lote: int = 1024,
              permutar_historia: bool = False, semilla: int = 7,
-             recorte: int | None = None) -> np.ndarray:
+             recorte: int | None = None,
+             fijar_objetivo: bool = True) -> np.ndarray:
     """Puntaje continuo de riesgo en [0, 1]."""
     modelo.eval()
     gen = torch.Generator().manual_seed(semilla)
     salida = np.empty(len(datos), dtype=np.float64)
     for posiciones in iterar_lotes(len(datos), tam_lote, False):
         lote = datos.lote(posiciones, permutar_historia=permutar_historia,
-                          generador=gen, recorte=recorte)
+                          generador=gen, recorte=recorte,
+                          fijar_objetivo=fijar_objetivo)
         salida[posiciones.numpy()] = torch.sigmoid(modelo(lote)).numpy()
     return salida
