@@ -1,0 +1,18 @@
+# Entorno
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Datos generables desde semilla (ver src/generador.py)
+datos/*.parquet
+datos/*.csv
+
+# Salidas intermedias
+figuras/*.png
+!figuras/.gitkeep
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
