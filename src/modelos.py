@@ -306,6 +306,22 @@ def entrenar(modelo: nn.Module, datos_train: Tensores, datos_val: Tensores,
     return {"mejor_metrica_val": mejor, "historial": historial}
 
 
+@torch.no_grad()
+def pesos_atencion(modelo: ModeloHibridoAtencion, datos: Tensores,
+                   posiciones: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Pesos de atencion y filas globales de la ventana, para unas posiciones.
+
+    Es la salida que convierte al modelo C en algo utilizable por un analista:
+    ademas del puntaje, dice QUE transaccion de la historia lo explica.
+    """
+    modelo.eval()
+    pos = torch.from_numpy(np.asarray(posiciones, dtype=np.int64))
+    lote = datos.lote(pos)
+    modelo(lote)
+    filas_globales = datos.base.idx[datos.filas[pos]].numpy()
+    return modelo.ultimos_pesos.numpy(), filas_globales
+
+
 def entrenar_linea_base(x_train, y_train, x_val, y_val, cols_categoricas,
                         metrica, semilla: int = 20853, verboso: bool = True):
     """A - Gradient boosting sobre agregados, con busqueda honesta.

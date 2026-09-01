@@ -203,6 +203,20 @@ def bootstrap_diferencia(y: np.ndarray, puntajes_a: np.ndarray,
 # Desglose por mecanismo
 # --------------------------------------------------------------------------
 
+def por_rol(df_eval: pd.DataFrame, puntajes: dict[str, np.ndarray],
+            umbrales: dict[str, float]) -> pd.DataFrame:
+    """Desglose por ROL del evento dentro del episodio de fraude.
+
+    Es un corte mas fino que `por_mecanismo` y responde a la pregunta exacta
+    del comite. En `escalada_prueba`, el evento "golpe" tiene un monto enorme y
+    cualquier modelo lo atrapa por magnitud; los eventos "sondeo", en cambio,
+    son microcompras indistinguibles de una racha legitima de suscripciones y
+    ocurren ANTES del golpe, de modo que ningun modelo causal puede usarlo. Si
+    el orden vale algo, tiene que notarse justo ahi.
+    """
+    return _desglose(df_eval, "rol", puntajes, umbrales)
+
+
 def por_mecanismo(df_eval: pd.DataFrame, puntajes: dict[str, np.ndarray],
                   umbrales: dict[str, float]) -> pd.DataFrame:
     """Exhaustividad de cada modelo por mecanismo de fraude.
@@ -211,17 +225,31 @@ def por_mecanismo(df_eval: pd.DataFrame, puntajes: dict[str, np.ndarray],
     mantiene constante la clase negativa, de modo que las filas son
     comparables entre si.
     """
+    return _desglose(df_eval, "mecanismo_nom", puntajes, umbrales)
+
+
+def _desglose(df_eval: pd.DataFrame, columna: str,
+              puntajes: dict[str, np.ndarray],
+              umbrales: dict[str, float]) -> pd.DataFrame:
+    """Metricas por grupo de fraude, manteniendo fija la clase negativa.
+
+    Cada fila enfrenta TODOS los legitimos contra el fraude de un solo grupo.
+    Si en vez de eso se filtrara tambien la clase negativa, la prevalencia
+    cambiaria entre filas y los AUC-PR dejarian de ser comparables.
+    """
     y = df_eval["es_fraude"].to_numpy()
-    mecanismos = [m for m in df_eval.loc[y == 1, "mecanismo_nom"].unique()]
+    etiquetas = df_eval[columna].astype(str).to_numpy()
+    grupos = sorted(set(etiquetas[y == 1]))
+
     filas = []
-    for mec in mecanismos:
-        sel = (y == 0) | (df_eval["mecanismo_nom"].to_numpy() == mec)
+    for grupo in grupos:
+        sel = (y == 0) | (etiquetas == grupo)
         y_sub = y[sel]
-        fila = {"mecanismo": str(mec), "n_fraudes": int(y_sub.sum())}
+        fila = {columna.replace("_nom", ""): grupo, "n_fraudes": int(y_sub.sum())}
         for nombre, p in puntajes.items():
             p_sub = p[sel]
             fila[f"aucpr_{nombre}"] = auc_pr(y_sub, p_sub)
-            r = _metricas(y_sub, p_sub, umbrales[nombre])
-            fila[f"exhaustividad_{nombre}"] = r.exhaustividad
+            fila[f"exhaustividad_{nombre}"] = _metricas(
+                y_sub, p_sub, umbrales[nombre]).exhaustividad
         filas.append(fila)
-    return pd.DataFrame(filas).sort_values("mecanismo").reset_index(drop=True)
+    return pd.DataFrame(filas)

@@ -288,6 +288,7 @@ def _transacciones_legitimas(rng: np.random.Generator,
     df["es_fraude"] = 0
     df["mecanismo"] = 0  # indice en MECANISMOS -> "ninguno"
     df["id_episodio"] = -1
+    df["rol"] = "normal"
     return df
 
 
@@ -307,6 +308,15 @@ def _episodio_escalada_prueba(rng, perfil, t0) -> list[dict]:
     "varias pruebas pequenas -> golpe grande", no el conjunto de valores.
     Un confusor legitimo (racha de suscripciones) produce las microcompras
     pero nunca el golpe final.
+
+    Sobre el rol de cada evento: las transacciones de SONDEO son el caso
+    critico del proyecto. Individualmente son indistinguibles de una racha
+    legitima de suscripciones -- mismo comercio, mismo canal, montos igual de
+    pequenos -- y en el instante en que ocurren el golpe todavia no existe, asi
+    que ningun modelo causal puede apoyarse en el. Lo unico que las delata es
+    que los montos ESCALAN de forma monotona, y esa es una propiedad del orden
+    que ninguna variable agregada puede ver: la media, el maximo y la
+    desviacion de la ventana son identicas si se baraja la secuencia.
     """
     eventos: list[dict] = []
     n_pruebas = int(rng.integers(4, 9))
@@ -322,6 +332,7 @@ def _episodio_escalada_prueba(rng, perfil, t0) -> list[dict]:
             "categoria": list(CATEGORIAS).index("suscripciones"),
             "canal": CANALES.index("online"),
             "departamento": int(perfil.depto_base),
+            "rol": "sondeo",
         })
     # El golpe: 1 o 2 cargos grandes al final.
     for _ in range(int(rng.integers(1, 3))):
@@ -334,6 +345,7 @@ def _episodio_escalada_prueba(rng, perfil, t0) -> list[dict]:
             "categoria": cat,
             "canal": CANALES.index("online"),
             "departamento": int(perfil.depto_base),
+            "rol": "golpe",
         })
     return eventos
 
@@ -365,6 +377,7 @@ def _episodio_rafaga_geografica(rng, perfil, t0) -> list[dict]:
             "canal": int(rng.choice([CANALES.index("banda"), CANALES.index("chip")],
                                     p=[0.7, 0.3])),
             "departamento": int(d),
+            "rol": "salto_geografico",
         })
     return eventos
 
@@ -390,6 +403,7 @@ def _episodio_vaciado_subito(rng, perfil, t0) -> list[dict]:
             "categoria": cat,
             "canal": CANALES.index("atm") if usa_atm else CANALES.index("banda"),
             "departamento": int(perfil.depto_base),
+            "rol": "monto_atipico",
         })
     return eventos
 
@@ -427,6 +441,10 @@ def _episodio_toma_gradual(rng, perfil, t0) -> list[dict]:
             "canal": CANALES.index("online") if rng.random() < 0.4 + 0.4 * avance
             else CANALES.index("chip"),
             "departamento": int(perfil.depto_base),
+            # La primera mitad del episodio aun se parece al cliente real; la
+            # segunda ya opera con el perfil desviado. Separarlas permite medir
+            # cuanto tarda cada modelo en darse cuenta.
+            "rol": "deriva_inicial" if avance <= 0.5 else "deriva_avanzada",
         })
     return eventos
 
@@ -485,6 +503,8 @@ def generar(cfg: ConfigGenerador | None = None) -> pd.DataFrame:
     fraudes = _inyectar_fraude(rng, perfiles, cfg)
 
     df = pd.concat([legitimas, fraudes], ignore_index=True)
+    # Los confusores legitimos entran sin columna `rol`; todos son "normal".
+    df["rol"] = df["rol"].fillna("normal")
 
     # Recortar al periodo simulado y ordenar por tarjeta y tiempo: este orden
     # es el objeto de estudio del proyecto.

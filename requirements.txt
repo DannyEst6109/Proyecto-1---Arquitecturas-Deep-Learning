@@ -1,0 +1,19 @@
+# Proyecto 1 - Monitoreo transaccional (Deep Learning 2026, UVG)
+# Daniel Estrada (20853) - Hansel Lopez (19026)
+#
+# Probado con Python 3.13.7 en Windows 11. Solo CPU; no se requiere GPU.
+# torch se instala desde el indice de PyTorch para obtener la rueda CPU:
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+numpy==2.5.2
+pandas==3.0.5
+scikit-learn==1.9.0
+torch==2.13.0
+matplotlib==3.11.1
+pyarrow==25.0.1
+
+# Ejecucion del cuaderno
+jupyter==1.1.1
+ipykernel==7.3.0
+nbconvert==7.17.1
+nbformat==5.11.1
