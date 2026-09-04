@@ -1,7 +1,7 @@
 # Proyecto 1 — Monitoreo transaccional: detectar lo que el orden revela
 
 **Universidad del Valle de Guatemala · Deep Learning 2026**
-**Daniel Estrada (20853) · Hansel López (19026)**
+**Daniel Estrada (20853) · Daniela Ramírez (23053)**
 
 Investigación sobre si el **orden** de las transacciones de una tarjeta aporta
 información que las variables agregadas por ventana no capturan, bajo qué
@@ -28,13 +28,13 @@ pip install -r requirements.txt
 Generar los datos y ejecutar todo el análisis:
 
 ```bash
-jupyter nbconvert --to notebook --execute --inplace proyecto1_estrada_lopez.ipynb
+jupyter nbconvert --to notebook --execute --inplace proyecto1_estrada_ramirez.ipynb
 ```
 
 O abrir el cuaderno y ejecutarlo de arriba hacia abajo:
 
 ```bash
-jupyter lab proyecto1_estrada_lopez.ipynb
+jupyter lab proyecto1_estrada_ramirez.ipynb
 ```
 
 Solo regenerar el conjunto de datos:
@@ -93,10 +93,12 @@ pyarrow          25.0.1
 ## 2. Estructura del repositorio
 
 ```
-proyecto1_estrada_lopez.ipynb   Cuaderno ejecutado: A, B, C, las dos pruebas y la economía
+proyecto1_estrada_ramirez.ipynb  Cuaderno ejecutado: A, B, C, las dos pruebas y la economía
+informe.pdf                     Informe para el comité de riesgos (7 páginas)
+presentacion.pdf                Presentación (8 diapositivas)
+README.md                       Este archivo
 HIPOTESIS_C.md                  Pre-registro de la apuesta C (commit anterior a los resultados)
-informe.pdf                     Informe para el comité de riesgos (máx. 7 páginas)
-presentacion.pdf                Presentación (máx. 8 diapositivas)
+requirements.txt                Versiones exactas
 src/
   generador.py                  Generador sintético (Ruta A). 4 mecanismos + confusores
   caracteristicas.py            Variables agregadas estrictamente causales
@@ -115,18 +117,23 @@ artefactos/
   resultados.json               Todas las métricas de la corrida
   matriz_evidencias.csv         Matriz de evidencias del informe
 herramientas/
-  construir_notebook.py         Genera el .ipynb desde código
+  verificar_causalidad.py       Verificación independiente de ausencia de fuga
   generar_informe.py            Genera informe.pdf y presentacion.pdf desde resultados.json
 datos/                          Caché del dataset (regenerable, no versionado)
-figuras/                        Figuras del informe (regenerables)
+figuras/                        Figuras que produce el cuaderno (regenerables, no versionadas)
 ```
 
-Los PDF se generan **desde `artefactos/resultados.json`**, de modo que ninguna
-cifra del informe se transcribe a mano:
+Los PDF se generan **desde `artefactos/resultados.json`** y las figuras se leen
+del propio cuaderno ejecutado, de modo que ninguna cifra ni ninguna gráfica del
+informe se transcribe o se rehace a mano:
 
 ```bash
 python herramientas/generar_informe.py
 ```
+
+> Requiere Chrome o Edge (conversión HTML → PDF) y `pymupdf` para la numeración
+> de páginas. Es la única parte del proyecto con dependencias externas al
+> análisis; los resultados no dependen de ella.
 
 ---
 

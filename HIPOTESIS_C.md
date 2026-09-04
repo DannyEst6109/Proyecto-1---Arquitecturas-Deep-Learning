@@ -1,6 +1,6 @@
 # Apuesta del equipo (Pieza C) — declaración previa
 
-**Daniel Estrada (20853) · Hansel López (19026)**
+**Daniel Estrada (20853) · Daniela Ramírez (23053)**
 
 Este archivo se versiona **antes** de entrenar el modelo C a escala completa y
 **antes** de mirar el conjunto de prueba. El commit que lo introduce es la
