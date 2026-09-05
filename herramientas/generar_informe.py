@@ -181,38 +181,123 @@ table.matriz td, table.matriz th { padding: 2pt 4pt; }
 ESTILO_PRESENTACION = """
 @page { size: letter landscape; margin: 0; }
 * { box-sizing: border-box; }
-body { font-family: 'Times New Roman', Times, serif; color: #000; margin: 0; }
-.d { width: 11in; height: 8.5in; padding: 0.62in 0.75in 0.5in;
-     page-break-after: always; position: relative; }
+
+:root {
+  --tinta:      #0b0b0b;
+  --tinta-2:    #52514e;
+  --tinta-3:    #898781;
+  --marca:      #0d366b;
+  --serie-a:    #2a78d6;
+  --serie-b:    #eb6834;
+  --linea:      #e1e0d9;
+  --plano:      #f6f6f4;
+  --bien:       #0ca30c;
+  --mal:        #d03b3b;
+}
+
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+       color: var(--tinta); margin: 0; background: #fff;
+       -webkit-font-smoothing: antialiased; }
+
+.d { width: 11in; height: 8.5in; padding: 0.5in 0.7in 0.55in;
+     page-break-after: always; position: relative; background: #fff;
+     display: flex; flex-direction: column; }
 .d:last-child { page-break-after: auto; }
-h1 { font-size: 25pt; margin: 0 0 5pt; }
-.regla { border-bottom: 1.5px solid #000; margin-bottom: 12pt; }
-p { font-size: 15.5pt; line-height: 1.32; margin: 0 0 12pt; }
-ul { font-size: 15.5pt; line-height: 1.32; margin: 0 0 12pt; padding-left: 24pt; }
-li { margin-bottom: 5pt; }
-b { font-weight: bold; }
-.cols { display: flex; gap: 26pt; }
-.cols > div { flex: 1; }
-table { border-collapse: collapse; width: 100%; font-size: 14pt; margin: 2pt 0 10pt; }
-th { border-top: 1px solid #000; border-bottom: 1px solid #000;
-     padding: 5pt 7pt; text-align: left; }
-td { border-bottom: 0.5px solid #aaa; padding: 5pt 7pt; }
-th + th, td + td { text-align: right; }
-.cifra { text-align: center; margin: 14pt 0; }
-.cifra .v { font-size: 46pt; font-weight: bold; line-height: 1; }
-.cifra .e { font-size: 14pt; font-style: italic; margin-top: 7pt; }
-.caja { border: 1px solid #000; padding: 11pt 14pt; margin: 10pt 0; font-size: 15pt; }
-.pie { position: absolute; left: 0.75in; right: 0.75in; bottom: 0.38in;
-       font-size: 11pt; display: flex; justify-content: space-between;
-       border-top: 0.5px solid #999; padding-top: 4pt; }
-.portada { display: flex; flex-direction: column; justify-content: center;
-           align-items: center; text-align: center; }
-.portada .u { font-size: 15pt; font-weight: bold; }
-.portada .f { font-size: 13pt; margin-top: 6pt; }
-.portada .t { font-size: 27pt; font-weight: bold; margin-top: 52pt;
-              line-height: 1.2; }
-.portada .s { font-size: 15pt; margin-top: 12pt; }
-.portada .a { font-size: 13pt; margin-top: 42pt; line-height: 1.5; }
+.cuerpo { flex: 1; display: flex; flex-direction: column;
+          justify-content: center; min-height: 0; }
+.cuerpo > *:last-child { margin-bottom: 0; }
+
+/* --- Encabezado --- */
+.cab { display: flex; align-items: baseline; gap: 12px; margin-bottom: 3px; }
+.cab .num { font-size: 14pt; font-weight: 700; color: var(--serie-b);
+            letter-spacing: .04em; }
+h1 { font-size: 26pt; font-weight: 700; color: var(--marca); margin: 0;
+     letter-spacing: -.015em; line-height: 1.15; }
+.regla { height: 2.5px; background: var(--marca); margin: 9px 0 16px;
+         position: relative; }
+.regla::after { content: ""; position: absolute; left: 0; top: 0; width: 54px;
+                height: 2.5px; background: var(--serie-b); }
+
+/* --- Texto --- */
+p { font-size: 14.5pt; line-height: 1.42; margin: 0 0 13pt; color: var(--tinta-2); }
+p.destacado { font-size: 14pt; color: var(--tinta); }
+b { font-weight: 650; color: var(--tinta); }
+ul { font-size: 13.5pt; line-height: 1.4; margin: 0 0 13pt; padding-left: 20px;
+     color: var(--tinta-2); }
+li { margin-bottom: 8px; }
+li::marker { color: var(--tinta-3); }
+.cita { font-size: 16pt; line-height: 1.42; color: var(--tinta);
+        border-left: 3px solid var(--serie-b); padding: 3px 0 3px 18px;
+        margin: 0 0 18pt; }
+
+.cols { display: flex; gap: 30px; }
+.cols > div { flex: 1; min-width: 0; }
+.cols.a60 > div:first-child { flex: 1.45; }
+.cols.b60 > div:last-child { flex: 1.45; }
+
+/* --- Caja de idea --- */
+.caja { background: var(--plano); border-left: 3px solid var(--marca);
+        padding: 15px 19px; margin: 0 0 14pt; font-size: 14.5pt;
+        line-height: 1.4; color: var(--tinta); }
+.caja.acento { border-left-color: var(--serie-b); }
+
+/* --- Tabla --- */
+table { border-collapse: collapse; width: 100%; font-size: 13pt;
+        margin: 2px 0 13pt; }
+th { text-align: left; font-weight: 650; color: var(--tinta-3);
+     font-size: 10.5pt; letter-spacing: .07em; text-transform: uppercase;
+     padding: 0 10px 8px 0; border-bottom: 1.5px solid var(--linea); }
+td { padding: 10px 10px 10px 0; border-bottom: 1px solid var(--linea);
+     color: var(--tinta-2); }
+td:first-child { color: var(--tinta); font-weight: 550; }
+th + th, td + td { text-align: right; padding-right: 0; }
+table.izq th + th, table.izq td + td { text-align: left; padding-right: 10px; }
+
+/* --- Fichas de dato --- */
+.fichas { display: flex; gap: 14px; margin: 0 0 12pt; }
+.ficha { flex: 1; border-top: 3px solid var(--linea); padding: 9px 0 0; }
+.ficha.bien { border-top-color: var(--bien); }
+.ficha.mal  { border-top-color: var(--mal); }
+.ficha.neutra { border-top-color: var(--serie-a); }
+.ficha .v { font-size: 31pt; font-weight: 700; line-height: 1;
+            color: var(--tinta); letter-spacing: -.02em; }
+.ficha .e { font-size: 11.5pt; color: var(--tinta-2); margin-top: 7px;
+            line-height: 1.32; }
+
+/* --- Cifra protagonista --- */
+.cifra { text-align: center; margin: 6px 0 12px; }
+.cifra .v { font-size: 76pt; font-weight: 700; line-height: 1;
+            color: var(--serie-b); letter-spacing: -.03em; }
+.cifra .e { font-size: 13.5pt; color: var(--tinta-2); margin-top: 10px; }
+
+/* --- Leyenda --- */
+.leyenda { display: flex; gap: 22px; font-size: 12pt; color: var(--tinta-2);
+           margin: 0 0 8px; }
+.leyenda span { display: flex; align-items: center; gap: 7px; }
+.leyenda i { width: 11px; height: 11px; border-radius: 2px; display: block; }
+
+figure { margin: 0 0 8pt; }
+figcaption { font-size: 10.5pt; color: var(--tinta-3); margin-top: 6px;
+             line-height: 1.35; }
+
+/* --- Pie --- */
+.pie { position: absolute; left: 0.7in; right: 0.7in; bottom: 0.3in;
+       font-size: 9.5pt; color: var(--tinta-3); display: flex;
+       justify-content: space-between; border-top: 1px solid var(--linea);
+       padding-top: 6px; }
+
+/* --- Portada --- */
+.portada { background: var(--marca); color: #fff; display: flex;
+           flex-direction: column; justify-content: center;
+           padding: 0.5in 1.1in; }
+.portada .inst { font-size: 12pt; color: #9ec5f4; letter-spacing: .02em; }
+.portada .t { font-size: 42pt; font-weight: 700; line-height: 1.1;
+              margin: 26px 0 0; letter-spacing: -.025em; }
+.portada .barra { width: 78px; height: 4px; background: var(--serie-b);
+                  margin: 26px 0; }
+.portada .s { font-size: 15pt; color: #cde2fb; }
+.portada .a { font-size: 13pt; color: #fff; margin-top: 46px; line-height: 1.7; }
+.portada .a span { color: #9ec5f4; }
 """
 
 
@@ -543,172 +628,406 @@ mano. Semilla {cfg['semilla']}.</p>"""
 # Presentacion
 # --------------------------------------------------------------------------
 
+def _barra(x: float, y: float, ancho: float, base: float, r: float = 4.0) -> str:
+    """Barra con los extremos superiores redondeados, anclada a la linea base."""
+    if base - y < r:
+        r = max(base - y, 0.0)
+    return (f"M{x},{base} L{x},{y + r} Q{x},{y} {x + r},{y} "
+            f"L{x + ancho - r},{y} Q{x + ancho},{y} {x + ancho},{y + r} "
+            f"L{x + ancho},{base} Z")
+
+
+def svg_mecanismos(R: dict) -> str:
+    """Barras agrupadas: A frente a B en cada mecanismo de fraude.
+
+    Dos series -> paleta categorica (azul = motor actual, naranja = secuencial),
+    validada con scripts/validate_palette.js. Se etiqueta solo el par decisivo
+    (vaciado subito); el resto lo lee el eje. La tabla completa esta en el
+    informe, seccion 3.2.
+    """
+    datos = R["por_mecanismo"]
+    x0, x1, y0, y1 = 62.0, 892.0, 18.0, 330.0
+    alto = y1 - y0
+    paso = (x1 - x0) / len(datos)
+    ancho = 62.0
+
+    piezas = []
+    for v in (0.0, 0.25, 0.5, 0.75, 1.0):
+        y = y1 - v * alto
+        piezas.append(f'<line x1="{x0}" y1="{y:.1f}" x2="{x1}" y2="{y:.1f}" '
+                      f'stroke="#e1e0d9" stroke-width="1"/>')
+        piezas.append(f'<text x="{x0 - 12}" y="{y + 4:.1f}" text-anchor="end" '
+                      f'font-size="12" fill="#898781">{v:.2f}</text>')
+
+    for i, m in enumerate(datos):
+        centro = x0 + paso * (i + 0.5)
+        for j, (clave, color) in enumerate([("aucpr_A", "#2a78d6"),
+                                            ("aucpr_B", "#eb6834")]):
+            # 2 px de superficie entre las dos barras del grupo.
+            x = centro - ancho - 1 + j * (ancho + 2)
+            y = y1 - m[clave] * alto
+            piezas.append(f'<path d="{_barra(x, y, ancho, y1)}" fill="{color}"/>')
+            if m["mecanismo"] == "vaciado_subito":
+                piezas.append(
+                    f'<text x="{x + ancho / 2:.1f}" y="{y - 9:.1f}" '
+                    f'text-anchor="middle" font-size="14" font-weight="650" '
+                    f'fill="{color}">{m[clave]:.3f}</text>')
+        piezas.append(f'<text x="{centro:.1f}" y="{y1 + 24}" text-anchor="middle" '
+                      f'font-size="14" fill="#52514e">{m["mecanismo"]}</text>')
+
+    piezas.append(f'<line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" '
+                  f'stroke="#c3c2b7" stroke-width="1.5"/>')
+    return ('<svg viewBox="0 0 900 358" width="100%" '
+            'font-family="system-ui, -apple-system, Segoe UI, sans-serif">'
+            + "".join(piezas) + "</svg>")
+
+
+def svg_permutacion(R: dict) -> str:
+    """Dumbbell: orden original -> orden barajado, para B y para C.
+
+    Un solo tono en dos pasos (la escala azul), porque los extremos son dos
+    ESTADOS del mismo modelo, no dos entidades distintas.
+    """
+    filas = [("Modelo B", R["aucpr_test"]["B"], R["caida_permutacion"]["B"]),
+             ("Modelo C", R["aucpr_test"]["C"], R["caida_permutacion"]["C"])]
+    x0, x1 = 150.0, 700.0
+
+    def px(v: float) -> float:
+        return x0 + v * (x1 - x0)
+
+    piezas = [
+        '<circle cx="156" cy="12" r="7" fill="#2a78d6"/>',
+        '<text x="170" y="17" font-size="13" fill="#52514e">orden original</text>',
+        '<circle cx="306" cy="12" r="7" fill="#86b6ef"/>',
+        '<text x="320" y="17" font-size="13" fill="#52514e">orden barajado</text>',
+    ]
+    for i, (nombre, original, caida) in enumerate(filas):
+        y = 62 + i * 88
+        barajado = original * (1 - caida)
+        piezas.append(f'<text x="0" y="{y + 5}" font-size="15" font-weight="600" '
+                      f'fill="#0b0b0b">{nombre}</text>')
+        piezas.append(f'<line x1="{px(barajado):.1f}" y1="{y}" x2="{px(original):.1f}" '
+                      f'y2="{y}" stroke="#cde2fb" stroke-width="4" '
+                      f'stroke-linecap="round"/>')
+        # Anillo de 2 px del color de la superficie sobre las marcas.
+        piezas.append(f'<circle cx="{px(barajado):.1f}" cy="{y}" r="9" fill="#86b6ef" '
+                      f'stroke="#fff" stroke-width="2"/>')
+        piezas.append(f'<circle cx="{px(original):.1f}" cy="{y}" r="9" fill="#2a78d6" '
+                      f'stroke="#fff" stroke-width="2"/>')
+        piezas.append(f'<text x="{px(barajado):.1f}" y="{y - 18}" text-anchor="middle" '
+                      f'font-size="13" fill="#52514e">{barajado:.3f}</text>')
+        piezas.append(f'<text x="{px(original):.1f}" y="{y - 18}" text-anchor="middle" '
+                      f'font-size="13" fill="#52514e">{original:.3f}</text>')
+        piezas.append(f'<text x="{x1 + 34}" y="{y + 6}" font-size="19" '
+                      f'font-weight="700" fill="#eb6834">&#8722;{100 * caida:.0f} %</text>')
+    return ('<svg viewBox="0 0 900 200" width="100%" '
+            'font-family="system-ui, -apple-system, Segoe UI, sans-serif">'
+            + "".join(piezas) + "</svg>")
+
+
+def svg_intervalo(R: dict) -> str:
+    """Intervalo de confianza de la mezcla frente al motor actual, anclado en 0."""
+    c = R["complementariedad"]
+    x0, x1 = 120.0, 830.0
+    tope = 0.0032
+
+    def px(v: float) -> float:
+        return x0 + (v / tope) * (x1 - x0)
+
+    y = 62.0
+    piezas = [
+        f'<line x1="{x0}" y1="26" x2="{x0}" y2="104" stroke="#c3c2b7" stroke-width="1.5"/>',
+        f'<text x="{x0}" y="18" text-anchor="middle" font-size="12" fill="#898781">'
+        f'0 &#183; sin aporte</text>',
+    ]
+    for v in (0.001, 0.002, 0.003):
+        piezas.append(f'<line x1="{px(v):.1f}" y1="26" x2="{px(v):.1f}" y2="104" '
+                      f'stroke="#e1e0d9" stroke-width="1"/>')
+        piezas.append(f'<text x="{px(v):.1f}" y="122" text-anchor="middle" '
+                      f'font-size="12" fill="#898781">+{v:.3f}</text>')
+    piezas.append(f'<line x1="{px(c["ic_inf"]):.1f}" y1="{y}" x2="{px(c["ic_sup"]):.1f}" '
+                  f'y2="{y}" stroke="#2a78d6" stroke-width="4" stroke-linecap="round"/>')
+    piezas.append(f'<circle cx="{px(c["diferencia_vs_A"]):.1f}" cy="{y}" r="10" '
+                  f'fill="#2a78d6" stroke="#fff" stroke-width="2"/>')
+    piezas.append(f'<text x="{px(c["diferencia_vs_A"]):.1f}" y="{y - 22}" '
+                  f'text-anchor="middle" font-size="17" font-weight="700" '
+                  f'fill="#0b0b0b">{c["diferencia_vs_A"]:+.4f}</text>')
+    return ('<svg viewBox="0 0 900 132" width="100%" '
+            'font-family="system-ui, -apple-system, Segoe UI, sans-serif">'
+            + "".join(piezas) + "</svg>")
+
+
+def svg_invarianza() -> str:
+    """Diagrama: barajar la secuencia no cambia ninguna variable agregada.
+
+    Ejemplo ilustrativo de `escalada_prueba` con los montos que produce el
+    generador (sondeos de Q4-60 que escalan, seguidos del golpe).
+    """
+    montos = [6, 8, 11, 15, 20, 1420]
+    barajado = [15, 1420, 6, 20, 8, 11]
+    ancho, hueco, x0 = 108.0, 13.0, 178.0
+
+    def fila(valores, y, etiqueta, color_ultimo):
+        out = [f'<text x="0" y="{y + 29}" font-size="14.5" font-weight="600" '
+               f'fill="#0b0b0b">{etiqueta}</text>']
+        for i, v in enumerate(valores):
+            x = x0 + i * (ancho + hueco)
+            grande = v > 100
+            relleno = color_ultimo if grande else "#f6f6f4"
+            texto = "#fff" if grande else "#52514e"
+            borde = "none" if grande else "#e1e0d9"
+            out.append(f'<rect x="{x}" y="{y}" width="{ancho}" height="46" rx="5" '
+                       f'fill="{relleno}" stroke="{borde}" stroke-width="1"/>')
+            out.append(f'<text x="{x + ancho / 2}" y="{y + 29}" text-anchor="middle" '
+                       f'font-size="15" font-weight="600" fill="{texto}">Q{v:,}</text>')
+        return out
+
+    piezas = fila(montos, 16, "Orden real", "#eb6834")
+    piezas += fila(barajado, 104, "Barajado", "#eb6834")
+    piezas.append('<line x1="178" y1="176" x2="890" y2="176" stroke="#e1e0d9" '
+                  'stroke-width="1"/>')
+    piezas.append('<text x="0" y="206" font-size="14.5" font-weight="600" '
+                  'fill="#0d366b">Lo que ve el motor actual</text>')
+    piezas.append('<text x="178" y="206" font-size="15" fill="#52514e">'
+                  'promedio Q247 &#160;&#183;&#160; m&#225;ximo Q1,420 &#160;&#183;&#160; '
+                  'n = 6 &#160;&#183;&#160; 1 comercio &#160;&#183;&#160; '
+                  '<tspan font-weight="650" fill="#0b0b0b">id&#233;ntico en ambos'
+                  '</tspan></text>')
+    return ('<svg viewBox="0 0 900 220" width="100%" '
+            'font-family="system-ui, -apple-system, Segoe UI, sans-serif">'
+            + "".join(piezas) + "</svg>")
+
+
 def construir_presentacion(R: dict) -> str:
     eco, mat = R["economia"], R["materialidad"]
     comp, apuesta = R["complementariedad"], R["apuesta_C"]
     mezcla, solo_a = eco["mezcla_AB"], R["solo_A"]
     variantes = {v["variante"]: v for v in R["permutacion_variantes"]}
-    barajado = variantes["solo la historia (controlada)"]["auc_pr_barajado"]
+    sin_control = variantes["toda la ventana (sin control)"]["caida_relativa"]
 
     def pie(n: int) -> str:
-        return (f'<div class="pie"><span>Estrada &middot; Ram&iacute;rez &mdash; '
-                f'Proyecto 1, Deep Learning 2026</span><span>{n} / 8</span></div>')
+        return (f'<div class="pie"><span>Estrada &#183; Ram&#237;rez &#183; '
+                f'Proyecto 1 &#183; Deep Learning 2026</span>'
+                f'<span>{n} / 8</span></div>')
+
+    def cab(n: str, titulo: str) -> str:
+        return (f'<div class="cab"><span class="num">{n}</span>'
+                f'<h1>{titulo}</h1></div><div class="regla"></div>')
+
+    leyenda = ('<div class="leyenda">'
+               '<span><i style="background:#2a78d6"></i>A &#183; motor actual '
+               '(agregadas)</span>'
+               '<span><i style="background:#eb6834"></i>B &#183; secuencial '
+               '(orden)</span></div>')
 
     d1 = f"""
 <div class="d portada">
-  <div class="u">Universidad del Valle de Guatemala</div>
-  <div class="f">Facultad de Ingenier&iacute;a &middot; Deep Learning &mdash; Semestre 2, 2026</div>
-  <div class="t">&iquest;El orden de las transacciones<br>revela fraude?</div>
-  <div class="s">Proyecto 1 &mdash; Monitoreo transaccional</div>
-  <div class="a">Daniel Estrada &ndash; 20853<br>Daniela Ram&iacute;rez &ndash; 23053</div>
+  <div class="inst">Universidad del Valle de Guatemala &#183; Facultad de Ingenier&#237;a<br>
+  Deep Learning &#8212; Semestre 2, 2026</div>
+  <div class="t">&#191;El orden de las transacciones<br>revela fraude?</div>
+  <div class="barra"></div>
+  <div class="s">Proyecto 1 &#8212; Monitoreo transaccional<br>
+  Informe al Comit&#233; de Riesgos, Banco del Altiplano</div>
+  <div class="a">Daniel Estrada <span>&#183; 20853</span><br>
+  Daniela Ram&#237;rez <span>&#183; 23053</span></div>
 </div>"""
 
     d2 = f"""
 <div class="d">
-  <h1>1. La pregunta del comit&eacute;</h1><div class="regla"></div>
-  <p><i>&laquo;Cuando revisamos los casos que se nos escaparon, el patr&oacute;n siempre est&aacute; ah&iacute;.
-  No en los montos: en el orden en que ocurrieron.&raquo;</i></p>
-  <p>El motor actual resume cada ventana en variables agregadas: monto promedio de 24&nbsp;h,
-  transacciones por hora, monto m&aacute;ximo y diversidad de comercios.</p>
-  <div class="caja"><b>El problema:</b> todas esas variables son id&eacute;nticas si se baraja la
-  secuencia. Por construcci&oacute;n, el motor actual no puede ver orden.</div>
-  <p>La pregunta no es &laquo;&iquest;puedo entrenar una LSTM?&raquo;, sino <b>&iquest;el orden aporta informaci&oacute;n
-  que los agregados no capturan, y cu&aacute;nto vale en quetzales?</b></p>
+  {cab("01", "La pregunta del comit&#233;")}
+  <div class="cuerpo">
+  <div class="cita">&#171;Cuando revisamos los casos que se nos escaparon, el patr&#243;n
+  siempre est&#225; ah&#237;. No en los montos: en el orden en que ocurrieron.&#187;</div>
+  <p>El motor actual resume cada ventana en variables agregadas: monto promedio de
+  24&#160;h, transacciones por hora, monto m&#225;ximo y diversidad de comercios.
+  <b>Todas son id&#233;nticas si se baraja la secuencia.</b></p>
+  <figure>{svg_invarianza()}
+  <figcaption>Ejemplo del mecanismo <i>escalada de prueba</i>: cinco microcompras
+  que escalan y luego el golpe. Para el motor actual, las dos secuencias son el
+  mismo caso.</figcaption></figure>
+  <div class="caja acento">Por construcci&#243;n, el motor actual <b>no puede ver
+  orden</b>. La pregunta no es &#171;&#191;podemos entrenar una LSTM?&#187;, sino
+  <b>&#191;el orden aporta informaci&#243;n que los agregados no capturan, y cu&#225;nto
+  vale en quetzales?</b></div>
+  </div>
   {pie(2)}
 </div>"""
 
     d3 = f"""
 <div class="d">
-  <h1>2. Dise&ntilde;o: datos donde conocemos la verdad</h1><div class="regla"></div>
-  <div class="cols">
+  {cab("02", "Dise&#241;o: datos donde conocemos la verdad")}
+  <div class="cuerpo">
+  <div class="fichas">
+    <div class="ficha neutra"><div class="v">{R['n_transacciones'] / 1000:.0f}k</div>
+      <div class="e">transacciones de
+      {R['config_generador']['n_tarjetas']:,} tarjetas en
+      {R['config_generador']['dias']} d&#237;as</div></div>
+    <div class="ficha neutra"><div class="v">{pct(R['tasa_fraude'], 2)}</div>
+      <div class="e">de fraude &#183; 400 episodios en 4 mecanismos</div></div>
+    <div class="ficha neutra"><div class="v">K = {R['k']}</div>
+      <div class="e">transacciones por ventana, en orden cronol&#243;gico</div></div>
+    <div class="ficha neutra"><div class="v">70/15/15</div>
+      <div class="e">partici&#243;n por fecha; la prueba se abri&#243; una sola vez</div></div>
+  </div>
+  <div class="cols b60">
     <div>
-      <p>Generamos los datos para poder hacer una <b>predicci&oacute;n falsable</b>: cuatro
-      mecanismos con dependencia del orden conocida y distinta.</p>
-      {tabla(["Mecanismo", "Orden", "Predicci&oacute;n"], [
+      <p>Generamos los datos para poder hacer una <b>predicci&#243;n falsable</b>:
+      cuatro mecanismos con dependencia del orden conocida y distinta. Con datos
+      reales esa dependencia es justo lo desconocido.</p>
+      <div class="caja"><i>Vaciado s&#250;bito</i> es el <b>control negativo</b>: si B
+      ganara tambi&#233;n ah&#237;, donde no hay orden que leer, su ventaja no vendr&#237;a
+      del orden.</div>
+    </div>
+    <div>
+      {tabla(["Mecanismo", "Orden", "Predicci&#243;n"], [
           ["escalada de prueba", "fuerte", "B gana"],
-          ["r&aacute;faga geogr&aacute;fica", "parcial", "empate"],
-          ["vaciado s&uacute;bito", "ninguno", "B NO gana"],
+          ["r&#225;faga geogr&#225;fica", "parcial", "empate"],
+          ["vaciado s&#250;bito", "ninguno", "B NO gana"],
           ["toma gradual", "difuso", "ambos fallan"]])}
+      <p style="font-size:11.5pt">Con <b>confusores leg&#237;timos</b> que imitan cada
+      uno: rachas de microcompras, compras grandes reales y viajes.</p>
     </div>
-    <div>
-      <p><b>Confusores leg&iacute;timos</b> para que no sea trivial: rachas de microcompras,
-      compras grandes reales y viajes.</p>
-      <p><b>{R['n_transacciones']:,}</b> transacciones &middot; {R['config_generador']['n_tarjetas']:,}
-      tarjetas &middot; {pct(R['tasa_fraude'], 2)} de fraude &middot; K&nbsp;=&nbsp;{R['k']}.</p>
-      <p>Partici&oacute;n temporal estricta 70/15/15 por fecha. El conjunto de prueba se abri&oacute;
-      <b>una sola vez</b>.</p>
-      <div class="caja"><i>Vaciado s&uacute;bito</i> es el <b>control negativo</b>: si B ganara
-      tambi&eacute;n ah&iacute;, la ventaja no vendr&iacute;a del orden.</div>
-    </div>
+  </div>
   </div>
   {pie(3)}
 </div>"""
 
     d4 = f"""
 <div class="d">
-  <h1>3. Prueba 1 &mdash; Permutaci&oacute;n controlada</h1><div class="regla"></div>
-  <p>Barajamos el orden de la historia dentro de cada ventana. Mismos eventos, mismos valores,
-  mismas variables agregadas, y la transacci&oacute;n calificada se queda en su sitio: solo se
-  destruye la secuencia.</p>
+  {cab("03", "Prueba 1 &#183; Permutaci&#243;n controlada")}
+  <div class="cuerpo">
+  <p>Barajamos el orden de la historia dentro de cada ventana. Mismos eventos,
+  mismos valores, mismas variables agregadas, y la transacci&#243;n calificada se queda
+  en su sitio: <b>solo se destruye la secuencia</b>.</p>
   <div class="cifra">
-    <div class="v">&minus;{pct(R['caida_permutacion']['B'], 0)}</div>
-    <div class="e">del AUC-PR del modelo secuencial se pierde al barajar
-    ({R['aucpr_test']['B']:.3f} &rarr; {barajado:.3f}, cinco permutaciones distintas)</div>
+    <div class="v">&#8722;{pct(R['caida_permutacion']['B'], 0)}</div>
+    <div class="e">del AUC-PR del modelo secuencial se pierde al barajar la
+    historia &#183; cinco permutaciones distintas</div>
   </div>
-  <p><b>El control que no es obvio:</b> si baraj&aacute;ramos tambi&eacute;n la posici&oacute;n de la transacci&oacute;n
-  calificada, el modelo perder&iacute;a adem&aacute;s el acceso al evento que debe puntuar y la ca&iacute;da
-  parecer&iacute;a de {pct(variantes['toda la ventana (sin control)']['caida_relativa'], 0)}. Sin ese
-  control estar&iacute;amos midiendo dos cosas y atribuy&eacute;ndolas al orden.</p>
+  {svg_permutacion(R)}
+  <div class="caja acento"><b>El control que no es obvio:</b> si baraj&#225;ramos
+  tambi&#233;n la posici&#243;n de la transacci&#243;n calificada, el modelo perder&#237;a
+  adem&#225;s el acceso al evento que debe puntuar y la ca&#237;da parecer&#237;a de
+  {pct(sin_control, 0)}. Estar&#237;amos midiendo dos cosas y atribuy&#233;ndolas al
+  orden.</div>
+  </div>
   {pie(4)}
 </div>"""
 
     d5 = f"""
 <div class="d">
-  <h1>4. Prueba 2 &mdash; Por mecanismo: el resultado inc&oacute;modo</h1><div class="regla"></div>
+  {cab("04", "Prueba 2 &#183; El resultado inc&#243;modo")}
+  <div class="cuerpo">
+  {leyenda}
+  <figure>{svg_mecanismos(R)}
+  <figcaption>AUC-PR por mecanismo sobre el conjunto de prueba. Las tasas base
+  difieren entre mecanismos, as&#237; que las columnas se comparan dentro de cada
+  grupo, no entre grupos. Tabla completa en el informe, &#167;3.2.</figcaption></figure>
   <div class="cols">
-    <div>
-      {tabla(["Mecanismo", "A", "B", "B &minus; A"],
-             [[m["mecanismo"], f"{m['aucpr_A']:.3f}", f"{m['aucpr_B']:.3f}",
-               f"{m['ventaja_B_sobre_A']:+.3f}"] for m in R["por_mecanismo"]])}
-    </div>
-    <div>
-      <p><b>Se confirm&oacute;:</b> B se desploma en el control sin orden
-      ({R['por_mecanismo'][3]['aucpr_B']:.3f} frente a
-      {R['por_mecanismo'][3]['aucpr_A']:.3f}). Donde no hay orden, no hay nada que leer.</p>
-      <p><b>Se refut&oacute;:</b> B no supera a A en ning&uacute;n mecanismo. Nuestra predicci&oacute;n fall&oacute; y
-      as&iacute; lo reportamos.</p>
-    </div>
+    <div><p><b>Se confirm&#243;:</b> B se desploma en el control sin orden
+    ({R['por_mecanismo'][3]['aucpr_B']:.3f} frente a
+    {R['por_mecanismo'][3]['aucpr_A']:.3f}). Donde no hay orden, no hay nada que
+    leer.</p></div>
+    <div><p><b>Se refut&#243;:</b> B no supera a A en ning&#250;n mecanismo. Nuestra
+    predicci&#243;n fall&#243; y as&#237; la reportamos.</p></div>
+  </div>
   </div>
   {pie(5)}
 </div>"""
 
     d6 = f"""
 <div class="d">
-  <h1>5. Entonces, &iquest;el orden aporta o no?</h1><div class="regla"></div>
-  <p>Que B pierda no significa que su se&ntilde;al sea <b>redundante</b>. Combinamos ambos puntajes
-  con una mezcla ajustada <b>solo en validaci&oacute;n</b>:</p>
-  <div class="cifra">
-    <div class="v">{R['aucpr_test']['A']:.4f} &rarr; {R['aucpr_test']['mezcla_AB']:.4f}</div>
-    <div class="e">{comp['diferencia_vs_A']:+.4f} &middot; IC 95&nbsp;%
-    [{comp['ic_inf']:+.4f}, {comp['ic_sup']:+.4f}] &mdash; no cruza cero</div>
+  {cab("05", "Entonces, &#191;el orden aporta o no?")}
+  <div class="cuerpo">
+  <p>El comit&#233; no pregunt&#243; si el modelo secuencial es mejor, sino si el orden
+  aporta informaci&#243;n que los agregados <b>no capturan</b>. Que B pierda no
+  significa que su se&#241;al sea redundante. Lo medimos combinando ambos puntajes con
+  una mezcla ajustada <b>solo en validaci&#243;n</b>.</p>
+  <figure>{svg_intervalo(R)}
+  <figcaption>Diferencia de AUC-PR entre la mezcla A+B y el motor actual, con su
+  intervalo de confianza del 95&#160;% (bootstrap remuestreando tarjetas completas).
+  El intervalo no toca el cero.</figcaption></figure>
+  <div class="cols">
+    <div class="fichas" style="margin:0">
+      <div class="ficha neutra"><div class="v">{R['aucpr_test']['A']:.4f}</div>
+        <div class="e">motor actual solo</div></div>
+      <div class="ficha neutra"><div class="v">{R['aucpr_test']['mezcla_AB']:.4f}</div>
+        <div class="e">motor + se&#241;al de orden</div></div>
+    </div>
+    <div><div class="caja acento" style="margin:0"><b>Detectable &#8800;
+    importante.</b> El intervalo excluye el cero, as&#237; que la se&#241;al de orden no
+    es redundante. Pero la mejora es de mil&#233;simas: con 40,000 transacciones se
+    detectan diferencias min&#250;sculas.</div></div>
   </div>
-  <p><b>Detectable &ne; importante.</b> El intervalo excluye el cero, as&iacute; que la se&ntilde;al de orden
-  no es redundante; pero la mejora es de mil&eacute;simas. Con 40,000 transacciones de prueba se
-  detectan diferencias min&uacute;sculas, y presentar esto como &laquo;las secuencias mejoran la
-  detecci&oacute;n&raquo; ser&iacute;a exagerar lo que medimos.</p>
+  </div>
   {pie(6)}
 </div>"""
 
     d7 = f"""
 <div class="d">
-  <h1>6. La decisi&oacute;n en quetzales &mdash; y el hallazgo real</h1><div class="regla"></div>
-  <p>Costos del comit&eacute;: <b>Q4,200</b> por fraude que pasa, <b>Q180</b> por bloqueo indebido.
-  Asimetr&iacute;a 23&nbsp;:&nbsp;1, as&iacute; que el umbral minimiza costo esperado, no F1.</p>
+  {cab("06", "La decisi&#243;n en quetzales &#183; el hallazgo real")}
+  <div class="cuerpo">
+  <p>Costos del comit&#233;: <b>Q4,200</b> por fraude que pasa, <b>Q180</b> por bloqueo
+  indebido. Asimetr&#237;a de <b>23 a 1</b>, as&#237; que el umbral minimiza costo esperado,
+  no F1. Se ajust&#243; en validaci&#243;n y se aplic&#243; sin cambios a prueba.</p>
   {tabla(["Escenario", "Fraudes que pasan", "Bloqueos indebidos", "Ahorro en prueba"], [
       ["Solo motor actual", f"{solo_a['FN']}", f"{solo_a['FP']}", q(solo_a["ahorro_Q"])],
-      ["Motor + se&ntilde;al de orden", f"{mezcla['FN']}", f"{mezcla['FP']}",
+      ["Motor + se&#241;al de orden", f"{mezcla['FN']}", f"{mezcla['FP']}",
        q(mezcla["ahorro_Q"])]])}
-  <div class="cols">
-    <div><p><b>En dinero: nada.</b> {q(mat['delta_ahorro_Q'])} de diferencia
-    ({pct(mat['delta_ahorro_rel'], 2)}). Indistinguible de no hacer nada.</p></div>
-    <div><p><b>En clientes: s&iacute;.</b> {abs(mat['delta_fp'])} bloqueos indebidos menos
-    ({pct(abs(mat['delta_fp_rel']), 0)}) a igual exhaustividad.</p></div>
+  <div class="fichas">
+    <div class="ficha"><div class="v">+{pct(mat['delta_ahorro_rel'], 2)}</div>
+      <div class="e"><b>En dinero: nada.</b> {q(mat['delta_ahorro_Q'])} sobre
+      {q(solo_a['ahorro_Q'] / 1e6, 2)} M de ahorro. Indistinguible de no hacer
+      nada.</div></div>
+    <div class="ficha bien"><div class="v">&#8722;{abs(mat['delta_fp'])}</div>
+      <div class="e"><b>En clientes: s&#237;.</b> Bloqueos indebidos, un
+      {pct(abs(mat['delta_fp_rel']), 0)} menos, a igual exhaustividad.</div></div>
+    <div class="ficha neutra"><div class="v">23&#215;</div>
+      <div class="e">Un bloqueo cuesta 23 veces menos que un fraude: evitar 95 casi
+      no mueve el balance.</div></div>
   </div>
-  <div class="caja">El caso a favor del orden es de <b>experiencia del cliente</b>, no de
-  detecci&oacute;n de fraude.</div>
+  <div class="caja acento">El caso a favor del orden es de <b>experiencia del
+  cliente</b>, no de detecci&#243;n de fraude. Son 95 personas a las que no se les
+  rechaza una compra.</div>
+  </div>
   {pie(7)}
 </div>"""
 
     d8 = f"""
 <div class="d">
-  <h1>7. Recomendaci&oacute;n y l&iacute;mites</h1><div class="regla"></div>
-  <div class="caja"><b>Piloto acotado.</b> Conservar el motor actual como decisi&oacute;n principal.
-  Lo que justificar&iacute;a el piloto no es detectar m&aacute;s fraude &mdash;eso no lo logra&mdash; sino molestar a
-  menos clientes detectando el mismo.</div>
+  {cab("07", "Recomendaci&#243;n y l&#237;mites")}
+  <div class="cuerpo">
+  <div class="caja"><b>Piloto acotado.</b> Conservar el motor actual como decisi&#243;n
+  principal. Lo que justificar&#237;a el piloto no es detectar m&#225;s fraude
+  &#8212;eso no lo logra&#8212; sino <b>molestar a menos clientes detectando el
+  mismo</b>.</div>
   <div class="cols">
     <div>
-      <p><b>Por qu&eacute; B no gan&oacute; solo</b></p>
-      <p>Pocos fraudes etiquetados en entrenamiento (~1,900). Los agregados son conocimiento del
-      dominio ya destilado; la red debe redescubrirlo con muy pocos positivos. Parece un l&iacute;mite
-      de datos, no de arquitectura &mdash;y es comprobable.</p>
-      <p>Nuestra <b>apuesta C fall&oacute;</b> ({apuesta['margen_val']:+.3f} frente al
-      +{apuesta['umbral_declarado']:.2f} exigido). Pre-registrada en git antes de ver el
-      conjunto de prueba; la reportamos como qued&oacute;.</p>
+      <p style="margin-bottom:6pt"><b>Por qu&#233; B no gan&#243; solo</b></p>
+      <p>Solo ~1,900 transacciones fraudulentas en entrenamiento. Los agregados son
+      conocimiento del dominio ya destilado; la red deber&#237;a redescubrirlo con muy
+      pocos positivos. Parece un l&#237;mite de datos, no de arquitectura &#8212;y es
+      comprobable.</p>
+      <p>Nuestra <b>apuesta C fall&#243;</b>: {apuesta['margen_val']:+.3f} frente al
+      +{apuesta['umbral_declarado']:.2f} exigido. Pre-registrada en git antes de ver
+      el conjunto de prueba; la reportamos como qued&#243;.</p>
     </div>
     <div>
-      <p><b>L&iacute;mites que declaramos</b></p>
+      <p style="margin-bottom:6pt"><b>L&#237;mites que declaramos</b></p>
       <ul>
-        <li>Datos sint&eacute;ticos: no dicen nada del fraude real.</li>
-        <li>Defecto de nuestro generador: sondeos y rachas leg&iacute;timas se separan por monto,
-        no solo por orden &mdash;sesga la prueba 2 a favor de A.</li>
-        <li>La atenci&oacute;n de C explica el caso en {pct(R['atencion_en_historia'], 0)}, frente al
-        60&nbsp;% declarado.</li>
+        <li>Datos sint&#233;ticos: no dicen nada del fraude real.</li>
+        <li>Defecto de nuestro generador: sondeos y rachas leg&#237;timas se separan
+        por monto, no solo por orden &#8212;sesga la prueba 2 a favor de A.</li>
+        <li>La atenci&#243;n de C explica el caso en
+        {pct(R['atencion_en_historia'], 0)}, frente al 60&#160;% declarado.</li>
         <li>Una sola semilla por variante.</li>
       </ul>
     </div>
   </div>
-  <p><b>Siguiente paso:</b> correr la permutaci&oacute;n y la prueba de complementariedad sobre los
-  datos reales del banco. Es una tarde de trabajo.</p>
+  <div class="caja acento"><b>Siguiente paso:</b> correr la permutaci&#243;n controlada
+  y la prueba de complementariedad sobre los datos reales del banco. El
+  procedimiento es directamente aplicable: es una tarde de trabajo.</div>
+  </div>
   {pie(8)}
 </div>"""
 
